@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#274b58">
+  <meta name="description" content="Ty Bufala Mobile — suivi du cheptel et ventes ponctuelles, utilisable hors ligne.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <title>Ty Bufala Mobile</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-lockup"><img class="brand-logo" src="icon-192.png" alt="Logo Ty Bufala"><div><div class="brand">TY BUFALA <span>MOBILE</span></div><div class="subbrand">Cheptel & ventes • Suzanna</div></div></div>
+    <div id="connectionIndicator" class="connection" role="status">Local</div>
+  </header>
+  <main id="app"><section class="card"><p>Chargement de l’application…</p></section></main>
+  <nav class="bottom-nav" aria-label="Navigation principale">
+    <button data-view="home" class="active"><span aria-hidden="true">⌂</span>Accueil</button>
+    <button data-view="herd"><span aria-hidden="true">♧</span>Cheptel</button>
+    <button data-view="sales"><span aria-hidden="true">€</span>Ventes</button>
+    <button data-view="data"><span aria-hidden="true">⇅</span>Données</button>
+  </nav>
+  <div id="modalRoot"></div>
+  <div id="toast" class="toast" aria-live="polite" hidden></div>
+  <script defer src="app.js"></script>
+</body>
+</html>
