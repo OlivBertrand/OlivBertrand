@@ -11,13 +11,14 @@ def test_source_preserved_undated_and_unidentified(tmp_path):
     from datetime import datetime
     for col,value in {'A':'FR000000','B':'0001','C':'Mère test','D':'F','E':datetime(2020,1,1),'V':'FR0000000001'}.items():s[col+'5']=value
     s['C6']='Nouveau non identifié';s['E6']=datetime(2026,10,1)
+    s['E7']=datetime(2026,10,2);s['L7']='0001'  # birth recorded without either name or identifier
     w.create_sheet('Descendance')['A1']='=1+1'
     e=w.create_sheet('Événements');e.append(['Historique']);e.append([]);e.append(['Date','Mère','Type','Remarque']);e.append([None,'Mère test','Observation','Date inconnue'])
     w.save(path);before=hashlib.sha256(path.read_bytes()).hexdigest()
     animals,events,report=extract(path)
     assert len(animals)==len(events)==1
     assert events[0]['dateUnknown'] and events[0]['date']==''
-    assert any(i['issue']=='unidentified_source_row' for i in report['anomalies'])
+    assert sum(i['issue']=='unidentified_source_row' for i in report['anomalies'])==2
     store=Store(str(tmp_path/'shared.db'));store.initialize()
     import_initial(store,path,{'id':'test_admin','role':'admin'})
     import_initial(store,path,{'id':'test_admin','role':'admin'})

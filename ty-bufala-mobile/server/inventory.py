@@ -35,7 +35,8 @@ def extract(path):
     animals, events, issues = [], [], []
     for row in range(5, sheet.max_row + 1):
         prefix, number, name = [values.cell(row, c).value for c in (1, 2, 3)]
-        if not any(v not in (None, '') for v in (prefix, number, name)):
+        input_columns = (1,2,3,4,5,9,11,12,14,15,16,17,18,19,20,21)
+        if not any(sheet.cell(row,c).value not in (None,'',0) and sheet.cell(row,c).data_type != 'f' for c in input_columns):
             continue
         number_text = str(number or '').strip()
         fmt = sheet.cell(row, 2).number_format
@@ -68,7 +69,7 @@ def extract(path):
         raise ValueError('Identifications en doublon : import bloqué.')
     def matches(raw):
         q = str(raw or '').strip().casefold()
-        return [a for a in animals if q and q in (a['earTag'].casefold(), a['name'].strip().casefold())]
+        return [a for a in animals if q and q in (a['earTag'].casefold(), a['name'].strip().casefold(), a['workNumber'].strip().casefold())]
     for a in animals:
         for rel in ('mother', 'father'):
             raw = a[rel + 'Name']
