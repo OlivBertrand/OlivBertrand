@@ -1,0 +1,12 @@
+{
+  "name": "ty-bufala-mobile",
+  "version": "0.3.0",
+  "private": true,
+  "scripts": {
+    "test:sync": "python3 tests/run_sync.py"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "6.2.5",
+    "jsdom": "^31.0.1"
+  }
+}

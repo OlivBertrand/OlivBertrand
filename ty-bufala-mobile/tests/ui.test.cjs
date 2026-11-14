@@ -1,0 +1,22 @@
+const {test}=require('node:test');const assert=require('node:assert/strict');
+const {JSDOM}=require('jsdom');const {IDBFactory}=require('fake-indexeddb');const fs=require('node:fs'),path=require('node:path');
+const base=path.join(__dirname,'..');
+const wait=async(fn,label)=>{for(let i=0;i<200;i++){if(fn())return;await new Promise(r=>setTimeout(r,10));}throw new Error('UI timeout: '+label)};
+test('DOM: login, automatic herd, controls, veterinary event and exact sale',async()=>{
+ const dom=new JSDOM(fs.readFileSync(path.join(base,'index.html'),'utf8'),{url:'http://127.0.0.1:8000/',runScripts:'outside-only',pretendToBeVisual:true});const w=dom.window;let cookie='',chain=Promise.resolve();
+ Object.defineProperty(w,'indexedDB',{value:new IDBFactory()});Object.defineProperty(w.navigator,'locks',{value:{request(_name,fn){const next=chain.then(fn);chain=next.catch(()=>{});return next;}}});
+ w.fetch=async(url,options={})=>{const response=await fetch(new URL(url,w.location.href),{...options,headers:{...options.headers,Cookie:cookie}});if(response.headers.get('set-cookie'))cookie=response.headers.get('set-cookie').split(';')[0];return response;};
+ w.scrollTo=()=>{};w.confirm=()=>true;w.setInterval=()=>1;w.structuredClone=structuredClone;
+ const failures=[];w.addEventListener('error',e=>failures.push(e.message));w.addEventListener('unhandledrejection',e=>failures.push(String(e.reason)));
+ w.eval(['sync.js','app.js','quality.js','enhancements.js'].map(f=>fs.readFileSync(path.join(base,f),'utf8')).join('\n'));
+ await wait(()=>w.document.querySelector('#username'),'login');
+ w.document.querySelector('#username').value='alice';w.document.querySelector('#password').value='local-test-only-password';w.document.querySelector('#loginForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
+ await wait(()=>w.document.querySelector('#quickAnimal'),'home');await wait(()=>w.document.querySelector('.stat strong')?.textContent==='1','automatic herd');
+ w.document.querySelector('[data-view="herd"]').click();await wait(()=>w.document.querySelector('#herdList [data-id]'),'herd');
+ w.document.querySelector('#herdList [data-id]').click();w.document.querySelector('#addEvent').click();
+ let form=w.document.querySelector('#editorForm');form.querySelector('[name="type"]').value='Traitement';form.querySelector('[name="description"]').value='Observation synthétique';form.querySelector('[name="medication"]').value='Test sans médicament réel';form.querySelector('[name="dose"]').value='Non applicable';form.querySelector('[name="milkWithdrawalDays"]').value='0';
+ form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(()=>!w.document.querySelector('#editorForm'),'save event');await wait(()=>w.document.querySelector('.event-name'),'event visible');
+ w.document.querySelector('[data-view="quality"]').click();assert.equal(w.document.querySelector('h1').textContent,'Contrôles du cheptel');w.document.querySelector('#ancestorLookup').value='animal_test';w.document.querySelector('#ancestorLookup').dispatchEvent(new w.Event('change'));assert.match(w.document.querySelector('#familyPreview').textContent,/Animal de test/);
+ w.document.querySelector('[data-view="sales"]').click();w.document.querySelector('#addSale').click();form=w.document.querySelector('#editorForm');form.querySelector('[name="product"]').value='Produit de test';form.querySelector('[name="price"]').value='5,05';form.querySelector('[name="quantity"]').value='0,333';form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(()=>!w.document.querySelector('#editorForm'),'sale saved');assert.match(w.document.querySelector('#salesList').textContent,/1,68/);
+ assert.deepEqual(failures,[]);console.log('DOM checks passed. Layout and real browser/PWA installation remain unverified.');dom.window.close();
+});
