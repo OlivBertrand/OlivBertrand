@@ -48,7 +48,10 @@ function buildPlants(l2,l3,l4){
   return plants;
 }
 
-if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+// iOS compatibility reset: no service worker registration for now.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(r=>r.unregister())).catch(()=>{});
+}
 
 const app=document.querySelector('#app');
 let currentView='dashboard';

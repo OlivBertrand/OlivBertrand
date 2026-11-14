@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Réinitialisation Zantho</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f5f5ef;color:#123f2b;padding:32px;line-height:1.45}main{max-width:520px;margin:auto}.box{background:white;border-radius:18px;padding:22px;box-shadow:0 4px 18px #0001}</style>
+</head><body><main><div class="box"><h1>Zantho</h1><p id="msg">Nettoyage de l’ancienne installation…</p></div></main>
+<script>
+(async()=>{
+ try{
+   if('serviceWorker' in navigator){
+     const regs=await navigator.serviceWorker.getRegistrations();
+     await Promise.all(regs.map(r=>r.unregister()));
+   }
+   if('caches' in window){
+     const keys=await caches.keys();
+     await Promise.all(keys.filter(k=>k.startsWith('zantho-')).map(k=>caches.delete(k)));
+   }
+   document.getElementById('msg').textContent='Nettoyage terminé. Retour vers Zantho…';
+ }catch(e){}
+ setTimeout(()=>location.replace('/?clean=6'),600);
+})();
+</script></body></html>
