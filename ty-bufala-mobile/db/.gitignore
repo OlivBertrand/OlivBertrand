@@ -1,0 +1,8 @@
+# Private source data and generated databases MUST NOT be committed.
+*.db
+*.sqlite
+*.sqlite3
+*.sqlite3-*
+*.xlsx
+*inventaire*.json
+*inventory*.json
