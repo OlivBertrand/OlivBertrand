@@ -43,3 +43,15 @@ test('evenements orphelins detectes',()=>{
   const issues=Q.check({animals:[A],events:[{id:'event-1',animalId:'missing',type:'Traitement',date:today}],sales:[]},today).issues;
   assert.equal(issues.some(x=>x.code==='orphan_event'),true);
 });
+test('père et descendance paternelle vérifiés',()=>{
+ const father={id:'father',earTag:'FR900',sex:'M',birthDate:'2020-01-01'};
+ const child={...B,id:'child2',motherTag:'',fatherTag:'FR900'};
+ assert.deepEqual(Q.descendants([father,child],father.id).map(x=>[x.animal.id,x.through]),[['child2','père']]);
+ const bad={...father,sex:'F'};
+ assert.ok(Q.validateAnimal(child,[bad,child],today).errors.some(x=>x.code==='female_father'));
+});
+test('contrôle traitement sans délai calculé automatiquement',()=>{
+ const e={id:'treatment-1',animalId:'a',date:today,type:'Traitement',medication:{name:'Médicament test'},milkWithdrawalUntil:'',meatWithdrawalUntil:''};
+ const report=Q.check({animals:[A],events:[e],sales:[]},today);
+ assert.ok(report.issues.some(x=>x.code==='treatment_withdrawal_missing'));
+});

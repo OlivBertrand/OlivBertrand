@@ -35,18 +35,28 @@
       if(dam.sex==='M')add(errors,'male_mother','La mère renseignée est identifiée comme mâle.');
       if(isDate(dam.birthDate)&&isDate(birth)&&dam.birthDate>=birth)add(errors,'mother_born_later','La mère ne peut pas être née le même jour ou après son petit.');
     }
+    const sire=father&&animals.find(a=>tag(a.earTag)===father);
+    if(sire){
+      if(sire.sex==='F')add(errors,'female_father','Le père renseigné est identifié comme femelle.');
+      if(isDate(sire.birthDate)&&isDate(birth)&&sire.birthDate>=birth)add(errors,'father_born_later','Le père ne peut pas être né le même jour ou après son petit.');
+    }
     if(animal?.status==='sorti'&&!animal.exitDate)add(warnings,'exit_date_missing','L’animal est sorti, sans date de sortie.');
     if(animal?.status!=='sorti'&&animal?.exitDate)add(warnings,'exit_date_present','Une date de sortie existe alors que le statut est « présent ».');
     return {errors,warnings};
   }
   function descendants(animals,rootId){
     const origin=animals.find(a=>a.id===rootId);if(!origin)return [];
-    const byMother=new Map();
-    for(const animal of animals){const parent=tag(animal.motherTag);if(!parent)continue;const list=byMother.get(parent)||[];list.push(animal);byMother.set(parent,list);}
+    const byParent=new Map();
+    for(const animal of animals){
+      for(const [field,through] of [['motherTag','mère'],['fatherTag','père']]){
+        const parent=tag(animal[field]);if(!parent)continue;
+        const list=byParent.get(parent)||[];list.push({animal,through});byParent.set(parent,list);
+      }
+    }
     const seen=new Set([origin.id]),rows=[],queue=[{tag:tag(origin.earTag),depth:0}];
-    while(queue.length){const current=queue.shift();for(const child of byMother.get(current.tag)||[]){
-      if(seen.has(child.id))continue;seen.add(child.id);rows.push({animal:child,depth:current.depth+1});
-      if(current.depth<30)queue.push({tag:tag(child.earTag),depth:current.depth+1});
+    while(queue.length){const current=queue.shift();for(const {animal,through} of byParent.get(current.tag)||[]){
+      if(seen.has(animal.id))continue;seen.add(animal.id);rows.push({animal,depth:current.depth+1,through});
+      if(current.depth<30)queue.push({tag:tag(animal.earTag),depth:current.depth+1});
     }}return rows;
   }
   function check(data,today){
@@ -73,6 +83,13 @@
         else if(m.sex==='M')add('male_mother','error','Mère répertoriée comme mâle',a.id,mother);
         else if(isDate(a.birthDate)&&isDate(m.birthDate)&&m.birthDate>=a.birthDate)add('mother_timeline','error','Chronologie mère/petit impossible',a.id,mother);
       }
+      const father=tag(a.fatherTag);
+      if(father){
+        const f=byTag.get(father);
+        if(!f)add('external_father','info','Père non enregistré dans l’inventaire',a.id,father);
+        else if(f.sex==='F')add('female_father','error','Père répertorié comme femelle',a.id,father);
+        else if(isDate(a.birthDate)&&isDate(f.birthDate)&&f.birthDate>=a.birthDate)add('father_timeline','error','Chronologie père/petit impossible',a.id,father);
+      }
       if(a.status==='sorti'&&!a.exitDate)add('missing_exit','warning','Date de sortie manquante',a.id);
       if(a.status!=='sorti'&&a.exitDate)add('exit_disagreement','warning','Date de sortie mais statut présent',a.id);
       if(isDate(a.exitDate)&&isDate(a.birthDate)&&a.exitDate<a.birthDate)add('early_exit','error','Sortie avant naissance',a.id);
@@ -89,7 +106,12 @@
       for(const field of ['milkWithdrawalUntil','meatWithdrawalUntil']){
         if(e[field]&&!isDate(e[field]))add('invalid_withdrawal','error','Date de délai d’attente incorrecte',e.animalId,field);
       }
-      if(e.type==='Traitement'&&!text(e.description)&&!text(e.medication?.name))add('treatment_unspecified','warning','Traitement sans détail',e.animalId);
+      if(e.type==='Traitement'){
+        if(!text(e.medication?.name))add('treatment_unspecified','warning','Traitement : médicament à renseigner',e.animalId);
+        if(!e.milkWithdrawalUntil||!e.meatWithdrawalUntil)add('treatment_withdrawal_missing','warning','Délais d’attente lait/viande incomplets : vérifier',e.animalId);
+        if(isDate(today)&&(isDate(e.milkWithdrawalUntil)&&e.milkWithdrawalUntil>=today||isDate(e.meatWithdrawalUntil)&&e.meatWithdrawalUntil>=today))
+          add('treatment_withdrawal_attention','warning','Traitement : délai déclaré à contrôler',e.animalId);
+      }
     }
     const saleIDs=new Set();
     for(const s of sales){

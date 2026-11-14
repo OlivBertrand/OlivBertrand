@@ -68,7 +68,7 @@
     const descendants=Q.descendants(state.animals,a.id);
     el.innerHTML=`<div class="audit-family-group"><h3>Animal sélectionné</h3>${actorLink(a.id,labelOf(a),a.birthDate?'Né(e) le '+dateFR(a.birthDate):'')}</div>
       <div class="audit-family-group"><h3>Parents</h3>${mother?actorLink(mother.id,labelOf(mother),'Mère'):`<p class="help">Mère : ${esc(a.motherName||a.motherTag||'Non renseignée')}</p>`}${father?actorLink(father.id,labelOf(father),'Père'):`<p class="help">Père : ${esc(a.fatherName||a.fatherTag||'Non renseigné')}</p>`}</div>
-      <div class="audit-family-group"><h3>Descendance connue (${descendants.length})</h3>${descendants.length?descendants.map(d=>`<div class="audit-generation" style="--depth:${Math.min(d.depth,8)}"><span class="audit-gen-label">Génération ${d.depth}</span>${actorLink(d.animal.id,labelOf(d.animal),d.animal.birthDate?dateFR(d.animal.birthDate):'Date inconnue')}</div>`).join(''):'<p class="help">Aucun descendant identifié dans le fichier.</p>'}</div>`;
+      <div class="audit-family-group"><h3>Descendance connue (${descendants.length})</h3>${descendants.length?descendants.map(d=>`<div class="audit-generation" style="--depth:${Math.min(d.depth,8)}"><span class="audit-gen-label">Génération ${d.depth} · lien par ${esc(d.through||'mère')}</span>${actorLink(d.animal.id,labelOf(d.animal),d.animal.birthDate?dateFR(d.animal.birthDate):'Date inconnue')}</div>`).join(''):'<p class="help">Aucun descendant identifié dans le fichier.</p>'}</div>`;
     bindAnimalLinks(el);
   }
   render=function(){if(ui.view==='quality')return renderQuality();return oldRender();};

@@ -39,3 +39,9 @@ Depuis l'adresse Render en HTTPS sur Chrome Android, menu ⋮ > **Ajouter à l'�
 - Saisie d'une naissance reliée à la mère, mise à jour du dernier vêlage.
 - Vente de deux produits, sauvegarde locale puis export JSON/CSV.
 - Rechargement hors ligne après premier chargement connecté, sauvegarde/restauration.
+
+## Complément en revue (branche événements terrain)
+
+Le dossier contient désormais `field-core.js`, `field-ui.js`, `field-ui.css` et `sales-math.js` (à intégrer après revue Work), afin d'assurer une saisie structurée des traitements, mouvements, réentrées et autres événements. Dates de fin de délai d'attente saisies à la main, jamais calculées. Les ventes bénéficient d'arrondis exacts, d'un avertissement sur les doublons possibles et d'un historique de corrections/annulations. La filiation paternelle est éditable ; les descendants peuvent être recherchés côté père ou mère.
+
+Ces fonctions **n'installent pas une base commune** et ne synchronisent pas OneDrive ou SQLite automatiquement. Voir `WORK_HANDOFF_FIELD.md` pour le contrat complémentaire et les limites. Exécuter `node --test tests/*.test.cjs` avant toute fusion.
