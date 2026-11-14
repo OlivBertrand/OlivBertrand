@@ -10,6 +10,7 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png" type="image/png">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="enhancements.css">
 </head>
 <body>
   <header class="topbar">
@@ -21,10 +22,13 @@
     <button data-view="home" class="active"><span aria-hidden="true">⌂</span>Accueil</button>
     <button data-view="herd"><span aria-hidden="true">♧</span>Cheptel</button>
     <button data-view="sales"><span aria-hidden="true">€</span>Ventes</button>
+    <button data-view="quality"><span aria-hidden="true">✓</span>Contrôles</button>
     <button data-view="data"><span aria-hidden="true">⇅</span>Données</button>
   </nav>
   <div id="modalRoot"></div>
   <div id="toast" class="toast" aria-live="polite" hidden></div>
   <script defer src="app.js"></script>
+  <script defer src="quality.js"></script>
+  <script defer src="enhancements.js"></script>
 </body>
 </html>

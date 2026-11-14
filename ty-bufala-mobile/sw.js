@@ -1,5 +1,5 @@
-const CACHE = 'ty-bufala-mobile-v2';
-const ASSETS = ['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable-512.png'];
+const CACHE = 'ty-bufala-mobile-v3-quality';
+const ASSETS = ['./','./index.html','./styles.css','./enhancements.css','./app.js','./quality.js','./enhancements.js','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable-512.png'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil((async () => {
   const keys = await caches.keys();
