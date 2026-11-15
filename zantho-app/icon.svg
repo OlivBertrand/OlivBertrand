@@ -1,1 +1,26 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#123f2b"/><path d="M119 151h274L188 361h205" fill="none" stroke="#f3efe3" stroke-width="42" stroke-linecap="round" stroke-linejoin="round"/><circle cx="355" cy="153" r="31" fill="#b54b3f"/><path d="M346 125c-14-35-49-54-81-43 23 8 41 27 50 52" fill="#7c9e72"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#123f2b"/>
+      <stop offset="0.5" stop-color="#4f6f45"/>
+      <stop offset="1" stop-color="#c6cfb9"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="1" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#123f2b"/>
+      <stop offset="0.55" stop-color="#6d845b"/>
+      <stop offset="1" stop-color="#d9dfd0"/>
+    </linearGradient>
+    <radialGradient id="berry" cx="35%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#cf5a4a"/>
+      <stop offset="1" stop-color="#8e2f2a"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="#ffffff"/>
+  <path d="M90 82 C90 45 118 28 160 28 H297 V166 H90 Z" fill="url(#g1)"/>
+  <path d="M227 303 C227 257 260 220 311 220 H436 V370 C436 423 396 459 341 459 H227 Z" fill="url(#g2)"/>
+  <path d="M111 444 C173 356 223 283 275 222 C319 169 349 132 386 72" fill="none" stroke="#173f2d" stroke-width="5" stroke-linecap="round"/>
+  <path d="M221 302 C200 282 197 250 208 218 C225 231 234 259 221 302Z" fill="#58704f"/>
+  <path d="M287 204 C305 177 334 164 367 169 C350 194 319 209 287 204Z" fill="#45633f"/>
+  <path d="M342 135 C351 106 370 86 394 76 C393 104 374 126 342 135Z" fill="#35583a"/>
+  <circle cx="394" cy="111" r="20" fill="url(#berry)"/>
+</svg>
