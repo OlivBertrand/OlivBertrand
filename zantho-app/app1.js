@@ -1,4 +1,4 @@
-const APP_VERSION = '0.5.1';
+const APP_VERSION = '0.5.2';
 const STORAGE_KEY = 'zantho-state-v1';
 const PHOTO_DB = 'zantho-photos-v1';
 const PHOTO_STORE = 'photos';
@@ -50,7 +50,7 @@ function buildPlants(l2,l3,l4){
 
 // Hors-ligne : réseau d'abord, cache de secours.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=0.5.1').catch(err=>console.warn('Service worker',err)));
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=0.5.2').catch(err=>console.warn('Service worker',err)));
 }
 
 const app=document.querySelector('#app');
