@@ -390,7 +390,7 @@ renderSettings=function(){
       <div class="notice"><strong>Configuration Microsoft Entra</strong><br>
         1. Nom de l’application : <strong>Zantho</strong><br>
         2. Plateforme : <strong>Single-page application (SPA)</strong><br>
-        3. URI de redirection : <strong>${esc(location.origin+'/')}</strong><br>
+        3. URI de redirection : <strong>${esc(location.origin+'/auth.html')}</strong><br>
         4. Microsoft Graph délégué : <strong>Files.ReadWrite.AppFolder</strong><br>
         Stockage ensuite limité à <strong>OneDrive → Apps → Zantho</strong>.
       </div>
