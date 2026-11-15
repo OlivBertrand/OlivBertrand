@@ -10,6 +10,8 @@ let zSyncTimer=null;
 let zMsalCache=null;
 let zMsalClientId=null;
 let zInternalSyncSave=false;
+let zAuthInitPromise=null;
+const Z_AUTH_RESUME_KEY='zantho-sync-resume-v1';
 
 function zSyncMeta(){
   try{return JSON.parse(localStorage.getItem(Z_SYNC_META_KEY)||'{}');}catch{return {};}
@@ -159,51 +161,86 @@ function zGraphUrl(path=''){
 async function zGetMsal(){
   const clientId=(state.settings.clientId||Z_DEFAULT_CLIENT_ID||'').trim();
   if(!clientId) throw new Error('Client ID Microsoft manquant');
-  if(zMsalCache && zMsalClientId===clientId) return zMsalCache;
+  if(zMsalCache && zMsalClientId===clientId){
+    if(zAuthInitPromise) await zAuthInitPromise;
+    return zMsalCache;
+  }
   const {PublicClientApplication}=await import('https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.29.0/+esm');
   const appMsal=new PublicClientApplication({
     auth:{
       clientId,
       authority:Z_AUTHORITY,
-      redirectUri:location.origin+'/auth.html'
+      redirectUri:location.origin+'/'
     },
-    cache:{cacheLocation:'localStorage'},system:{enableLegacyPolling:true,navigatePopups:false}
+    cache:{cacheLocation:'localStorage'}
   });
   await appMsal.initialize();
   zMsalCache=appMsal;
   zMsalClientId=clientId;
+
+  zAuthInitPromise=appMsal.handleRedirectPromise().then(result=>{
+    if(result?.account){
+      zSetSyncMeta({
+        account:result.account.username||result.account.name||'',
+        needsLogin:false,
+        lastError:''
+      });
+    }
+    if(location.hash && /(?:^|#|&)code=|(?:^|#|&)error=/.test(location.hash)){
+      history.replaceState(null,document.title,location.pathname+location.search);
+    }
+    return result;
+  }).catch(err=>{
+    console.error('MSAL redirect',err);
+    zSetSyncMeta({lastError:String(err?.message||err),needsLogin:true});
+    if(location.hash && /(?:^|#|&)code=|(?:^|#|&)error=/.test(location.hash)){
+      history.replaceState(null,document.title,location.pathname+location.search);
+    }
+    throw err;
+  });
+  await zAuthInitPromise;
   return appMsal;
 }
 async function zAccessToken(interactive=false){
   const msal=await zGetMsal();
   let account=msal.getAllAccounts()[0]||null;
+
   if(!account){
     if(!interactive) return null;
-    try{
-      const login=await msal.loginPopup({scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY,redirectUri:location.origin+'/auth.html'});
-      account=login.account;
-    }catch(err){
-      console.warn('MSAL popup',err);
-      throw new Error('Connexion Microsoft interrompue ou popup bloquée.');
-    }
+    sessionStorage.setItem(Z_AUTH_RESUME_KEY,'1');
+    zSetSyncMeta({lastError:'',needsLogin:false});
+    await msal.loginRedirect({
+      scopes:Z_SYNC_SCOPE,
+      authority:Z_AUTHORITY,
+      redirectUri:location.origin+'/',
+      redirectStartPage:location.href.split('#')[0]
+    });
+    return null;
   }
+
   try{
-    const t=await msal.acquireTokenSilent({account,scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY,redirectUri:location.origin+'/auth.html'});
-    zSetSyncMeta({account:account.username||account.name||'',needsLogin:false});
+    const t=await msal.acquireTokenSilent({
+      account,
+      scopes:Z_SYNC_SCOPE,
+      authority:Z_AUTHORITY,
+      redirectUri:location.origin+'/'
+    });
+    zSetSyncMeta({account:account.username||account.name||'',needsLogin:false,lastError:''});
     return t.accessToken;
   }catch(err){
     if(!interactive){
       zSetSyncMeta({needsLogin:true});
       return null;
     }
-    try{
-      const t=await msal.acquireTokenPopup({account,scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY,redirectUri:location.origin+'/auth.html'});
-      zSetSyncMeta({account:account.username||account.name||'',needsLogin:false});
-      return t.accessToken;
-    }catch(err){
-      console.warn('MSAL token popup',err);
-      throw new Error('Renouvellement Microsoft interrompu ou popup bloquée.');
-    }
+    sessionStorage.setItem(Z_AUTH_RESUME_KEY,'1');
+    await msal.acquireTokenRedirect({
+      account,
+      scopes:Z_SYNC_SCOPE,
+      authority:Z_AUTHORITY,
+      redirectUri:location.origin+'/',
+      redirectStartPage:location.href.split('#')[0]
+    });
+    return null;
   }
 }
 async function zEnsureAppRoot(token){
@@ -390,7 +427,7 @@ renderSettings=function(){
       <div class="notice"><strong>Configuration Microsoft Entra</strong><br>
         1. Nom de l’application : <strong>Zantho</strong><br>
         2. Plateforme : <strong>Single-page application (SPA)</strong><br>
-        3. URI de redirection : <strong>${esc(location.origin+'/auth.html')}</strong><br>
+        3. URI de redirection : <strong>${esc(location.origin+'/')}</strong><br>
         4. Microsoft Graph délégué : <strong>Files.ReadWrite.AppFolder</strong><br>
         Stockage ensuite limité à <strong>OneDrive → Apps → Zantho</strong>.
       </div>
@@ -429,7 +466,29 @@ renderSettings=function(){
   };
 };
 
-state.version='0.5.2';
+
+async function zResumeMicrosoftRedirect(){
+  const pending=sessionStorage.getItem(Z_AUTH_RESUME_KEY)==='1';
+  const hasResponse=!!(location.hash && /(?:^|#|&)code=|(?:^|#|&)error=/.test(location.hash));
+  if(!pending && !hasResponse) return;
+  try{
+    await zGetMsal();
+    const account=zMsalCache?.getAllAccounts?.()[0]||null;
+    if(account){
+      sessionStorage.removeItem(Z_AUTH_RESUME_KEY);
+      zSetSyncMeta({account:account.username||account.name||'',needsLogin:false,lastError:''});
+      setTimeout(()=>zRunSync({interactive:false,reason:'retour Microsoft'}),300);
+    }
+  }catch(err){
+    sessionStorage.removeItem(Z_AUTH_RESUME_KEY);
+    console.error('Reprise Microsoft',err);
+    zSetSyncMeta({lastError:String(err?.message||err),needsLogin:true});
+    render();
+  }
+}
+setTimeout(zResumeMicrosoftRedirect,100);
+
+state.version='0.5.3';
 state.deleted=zDeletedShape(state.deleted);
 zInternalSyncSave=true;
 save();
