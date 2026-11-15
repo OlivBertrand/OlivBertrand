@@ -41,6 +41,7 @@ function openPlant(id){
   m.querySelector('#detailObsPlant').onclick=()=>openObservation(id,m);
   m.querySelectorAll('[data-del-obs]').forEach(b=>b.onclick=()=>{
     if(!confirm('Supprimer cette observation ?')) return;
+    if(typeof markDeleted==='function') markDeleted('observations',b.dataset.delObs);
     state.observations=state.observations.filter(o=>o.id!==b.dataset.delObs);
     save();
     m.remove();
@@ -82,6 +83,7 @@ function openHarvest(id){
 
   m.querySelectorAll('[data-del-session]').forEach(b=>b.onclick=()=>{
     if(!confirm('Supprimer cette session de récolte ?')) return;
+    if(typeof markDeleted==='function') markDeleted('sessions',b.dataset.delSession);
     h.sessions=(h.sessions||[]).filter(s=>s.id!==b.dataset.delSession);
     h.updatedAt=nowISO();
     save();
@@ -95,6 +97,7 @@ function openHarvest(id){
     if(linked) return alert('Ce lot est utilisé par '+linked+' essai(s) de transformation. Supprime ou rattache ces essais avant.');
     if(!confirm('Supprimer définitivement ce lot et toutes ses sessions ?')) return;
     if(state.activeHarvestSession?.harvestId===id) state.activeHarvestSession=null;
+    if(typeof markDeleted==='function') markDeleted('harvests',id);
     state.harvests=state.harvests.filter(x=>x.id!==id);
     save();
     m.remove();
