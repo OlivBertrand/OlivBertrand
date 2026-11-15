@@ -85,3 +85,16 @@ L'import de référence est atomique sur une destination vide, réexécutable sa
 doublon et conserve la base source entière en archive privée. Les noms de
 parents rapprochés mais non confirmés alimentent `motherCandidateTag` ou
 `fatherCandidateTag`, sans créer de lien confirmé `motherTag`/`fatherTag`.
+
+
+## Export vers le sas Windows
+
+`GET /api/windows-staging` est réservé à l'administrateur. Le format
+`windows-staging` v1 contient uniquement les ventes (`salesComplete: true`),
+avec leurs identifiants et révisions ; `windowsIntegrated: false` distingue
+explicitement cet export d'un accusé comptable. Le sas repris dans
+`tools/windows_staging.py` accepte ce format et l'ancien `central-backup` v2.
+Un éditeur ne peut pas déclencher cet export ; les données ne sont pas mises
+en cache par HTTP. Le cheptel et les archives restent exclus du nouveau format.
+L'import dans les tables commerciales Windows et le retour des vrais reçus
+ne sont toujours pas activés.

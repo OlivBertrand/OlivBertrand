@@ -23,7 +23,7 @@ PWA Android/ordinateur avec API authentifiée et base commune. Cette branche ne 
 5. Examiner le vrai code Windows et une copie cohérente de `ty_bufala.db`. Aucun import comptable Windows n’est activé. Le catalogue, les unités et les règles de TVA doivent être rapprochés avant développement de l’adaptateur définitif.
 6. Vérifier visuellement dans un vrai navigateur/mobile. Les essais IndexedDB automatisés ne constituent pas une validation du rendu.
 
-Les photos/documents joints, la projection Excel modifiable en deux sens et le raccordement comptable Windows ne sont pas implémentés dans cette version.
+Les photos/documents joints, la projection Excel modifiable en deux sens et le raccordement comptable Windows ne sont pas implémentés dans cette version. Le sas Windows fourni séparément est maintenant repris et raccordé à un export administrateur limité aux ventes : voir `WINDOWS_STAGING.md`. Il ne produit aucun accusé comptable sans preuve relue dans la vraie base Windows.
 
 ## Développement local
 

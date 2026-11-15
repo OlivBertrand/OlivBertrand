@@ -186,6 +186,14 @@ def create_app(database_url=None, testing=False):
             rows = db.execute('SELECT * FROM changes WHERE kind=? AND record_id=? ORDER BY seq', (kind, record_id)).fetchall()
         return jsonify(history=[public_record(r) for r in rows])
 
+    @app.get('/api/windows-staging')
+    @authenticated
+    def windows_staging():
+        if g.user['role'] != 'admin':
+            raise Rejected('Export Windows réservé à un administrateur.', 403)
+        from .windows_export import sales_snapshot
+        return jsonify(sales_snapshot(store))
+
     @app.get('/api/export')
     @authenticated
     def export():
