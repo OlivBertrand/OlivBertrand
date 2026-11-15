@@ -126,7 +126,7 @@ function openPlantPicker(mode='open'){
     q=(q||'').toLowerCase().trim();
     const arr=state.plants.filter(p=>!q||(`${p.id} ${SPECIES[p.species].name} ${SPECIES[p.species].latin}`).toLowerCase().includes(q)).slice(0,30);
     list.innerHTML=arr.map(p=>`<button data-p="${p.id}"><strong>${p.id}</strong><span>${SPECIES[p.species].name}</span></button>`).join('');
-    list.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{const id=b.dataset.p;m.remove(); mode==='photo'?openPhotoCapture(id,document.body):openPlant(id);});
+    list.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{const id=b.dataset.p;m.remove(); mode==='photo'?openPhotoCapture(id,{remove:()=>{}}):openPlant(id);});
   };
   draw('');
   m.querySelector('#pickSearch').oninput=e=>draw(e.target.value);
