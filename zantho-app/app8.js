@@ -158,7 +158,7 @@ async function zGetMsal(){
   const clientId=(state.settings.clientId||'').trim();
   if(!clientId) throw new Error('Client ID Microsoft manquant');
   if(zMsalCache && zMsalClientId===clientId) return zMsalCache;
-  const {PublicClientApplication}=await import('https://cdn.jsdelivr.net/npm/@azure/msal-browser@5/+esm');
+  const {PublicClientApplication}=await import('https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.29.0/+esm');
   const appMsal=new PublicClientApplication({
     auth:{
       clientId,
@@ -388,7 +388,13 @@ renderSettings=function(){
     <p class="small-note">Copie durable et synchro iPhone ↔ PC. Zantho utilise uniquement son dossier d’application OneDrive via la permission minimale <code>Files.ReadWrite.AppFolder</code>.</p>
     <form id="syncSettingsV2" class="stack">
       <div class="field"><label>Client ID Microsoft Entra</label><input name="clientId" value="${esc(state.settings.clientId||'')}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off"></div>
-      <div class="notice">Emplacement : <strong>OneDrive → Apps → Zantho</strong><br>URI de redirection SPA : <strong>${esc(location.origin+'/')}</strong></div>
+      <div class="notice"><strong>Configuration Microsoft Entra</strong><br>
+        1. Nom de l’application : <strong>Zantho</strong><br>
+        2. Plateforme : <strong>Single-page application (SPA)</strong><br>
+        3. URI de redirection : <strong>${esc(location.origin+'/')}</strong><br>
+        4. Microsoft Graph délégué : <strong>Files.ReadWrite.AppFolder</strong><br>
+        Stockage ensuite limité à <strong>OneDrive → Apps → Zantho</strong>.
+      </div>
       <button class="btn secondary">Enregistrer</button>
     </form>
     <div class="sync-status-card">
