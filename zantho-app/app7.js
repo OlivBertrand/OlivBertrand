@@ -58,6 +58,7 @@ function openTransformationDetail(id){
     const linked=state.tastings.filter(x=>x.transformationId===id).length;
     if(linked) return alert('Cet essai est utilisé par '+linked+' dégustation(s). Supprime ou rattache ces dégustations avant.');
     if(!confirm('Supprimer cet essai de transformation ?')) return;
+    if(typeof markDeleted==='function') markDeleted('transformations',id);
     state.transformations=state.transformations.filter(x=>x.id!==id);
     save(); m.remove(); renderQuality();
   };
@@ -105,6 +106,7 @@ function openTastingDetail(id){
     <details class="danger-zone"><summary>Options</summary><button class="btn danger small" id="deleteTaste">Supprimer cette dégustation</button></details>`);
   m.querySelector('#deleteTaste').onclick=()=>{
     if(!confirm('Supprimer cette dégustation ?')) return;
+    if(typeof markDeleted==='function') markDeleted('tastings',id);
     state.tastings=state.tastings.filter(x=>x.id!==id);
     save(); m.remove(); renderQuality();
   };
