@@ -1,4 +1,4 @@
-const APP_VERSION = '0.5.5';
+const APP_VERSION = '0.6.0';
 const STORAGE_KEY = 'zantho-state-v1';
 const PHOTO_DB = 'zantho-photos-v1';
 const PHOTO_STORE = 'photos';
@@ -47,6 +47,17 @@ function buildPlants(l2,l3,l4){
   pushLine(3,[...Array(l3).fill('sichuan')]);
   pushLine(4,[...Array(l4).fill('sichuan'),...Array(10).fill('timut')]);
   pushLine(5,[...Array(7).fill('timut')]);
+
+  // Code terrain lisible, sans modifier l'identifiant technique historique.
+  const family=sp=>sp==='tas_f'||sp==='tas_m'?'TAS':sp==='japanese'?'JAP':sp==='korean'?'COR':sp==='sichuan'?'SIC':sp==='timut'?'TIM':'AUT';
+  const counters={};
+  plants.forEach(p=>{
+    const fam=family(p.species);
+    const key=`L${p.line}-${fam}`;
+    counters[key]=(counters[key]||0)+1;
+    p.groupCode=key;
+    p.code=`${key}-${String(counters[key]).padStart(2,'0')}`;
+  });
   return plants;
 }
 
@@ -88,7 +99,7 @@ enforceOfficialPlan();
 
 // Hors-ligne : réseau d'abord, cache de secours.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=0.5.5').catch(err=>console.warn('Service worker',err)));
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=0.6.0').catch(err=>console.warn('Service worker',err)));
 }
 
 const app=document.querySelector('#app');
