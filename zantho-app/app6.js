@@ -125,6 +125,25 @@ renderSettings=function(){
   };
 };
 
+function refreshConnectivity(){
+  const pill=document.querySelector('#syncPill');
+  if(!pill) return;
+  if(!navigator.onLine){
+    pill.textContent='Hors ligne';
+    pill.classList.add('offline');
+  }else{
+    pill.classList.remove('offline');
+    pill.textContent=state.settings.lastSync?'Sync '+fmtDateTime(state.settings.lastSync):'Local';
+  }
+}
+const _renderConnectivityV041=render;
+render=function(){
+  _renderConnectivityV041();
+  refreshConnectivity();
+};
+window.addEventListener('online',refreshConnectivity);
+window.addEventListener('offline',refreshConnectivity);
+
 state.version='0.4.1';
 _saveCoreV041();
 render();
