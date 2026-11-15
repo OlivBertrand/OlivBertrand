@@ -114,7 +114,7 @@ function renderPlanSetup(){
   </form></div>`;
   document.querySelector('#setupForm').addEventListener('submit',e=>{
     e.preventDefault(); const l2=+document.querySelector('#l2').value,l3=+document.querySelector('#l3').value,l4=+document.querySelector('#l4').value;
-    try{ state.plants=buildPlants(l2,l3,l4); state.plan={sichuanLine2:l2,sichuanLine3:l3,sichuanLine4:l4}; state.planConfigured=true; save(); render(); }
+    try{ state.plants=buildPlants(l2,l3,l4); state.plan={sichuanLine2:l2,sichuanLine3:l3,sichuanLine4:l4}; state.planConfigured=true; state.planUpdatedAt=nowISO(); save(); render(); }
     catch(err){ document.querySelector('#setupErr').textContent=err.message; }
   });
 }
