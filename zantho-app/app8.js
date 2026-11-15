@@ -473,7 +473,7 @@ async function zResumeMicrosoftRedirect(){
 }
 setTimeout(zResumeMicrosoftRedirect,100);
 
-state.version='0.5.5';
+state.version='0.6.0';
 state.deleted=zDeletedShape(state.deleted);
 zInternalSyncSave=true;
 save();
