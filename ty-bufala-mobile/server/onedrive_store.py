@@ -44,7 +44,7 @@ class GraphJournal:
                 return None
             raise RemoteUnavailable('Lecture OneDrive indisponible.') from None
         try:
-            content, _ = self.graph.download(self.drive, item['id'])
+            content, _ = self.graph.download(self.drive, item['id'], metadata=item)
             return json.loads(content)
         except (ValueError, KeyError, RuntimeError, OSError):
             raise RemoteUnavailable('Journal OneDrive illisible. Aucune écriture autorisée.') from None

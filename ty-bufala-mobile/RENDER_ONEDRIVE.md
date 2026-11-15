@@ -31,22 +31,29 @@ comme autorité. Le classeur Excel d'origine n'est pas modifié.
 
 ## Limites qui empêchent encore une mise en service
 
-- Les tests utilisent un stockage distant de test atomique. Ils ne prouvent PAS
-  les garanties réelles de Microsoft : il faut tester deux sessions de dépôt
-  concurrentes, la visibilité des fichiers et les réponses perdues sur un dossier
-  jetable, avant toute donnée réelle. Si Graph ne garantit pas le refus atomique
-  au dernier segment, cette architecture doit être abandonnée.
+- Un premier essai Graph réel, le 15 novembre 2026, valide dépôt/relecture et
+  concurrence sur un dossier neuf de l'application : une écriture est confirmée,
+  l'autre est refusée HTTP 409 dès la création de sa session, puis le contenu
+  gagnant est relu. Les réponses perdues et la concurrence à plus grande échelle
+  restent à éprouver en réel ; ce résultat n'est pas une preuve générale des
+  garanties de Microsoft. Les autres scénarios restent couverts par un stockage
+  distant de test atomique.
 - L'application Microsoft `Ty Bufala Mobile Render` est enregistrée pour les
   comptes personnels (client `ebf06cf9-f27b-40bd-9b02-383e8b48a8de`). Les droits
-  AppFolder et offline_access sont déclarés ; aucun consentement effectif n'a
-  encore été donné. `server.microsoft_auth` prépare une connexion par code
+  AppFolder et offline_access ont été consentis explicitement le 15 novembre
+  2026, après validation Authenticator ; le mode client public est activé.
+  `server.microsoft_auth` prépare une connexion par code
   d'appareil et renouvelle les jetons dans un cache local privé, uniquement pour
   les essais opérateur. La conservation durable de cette rotation sur Render
   reste à résoudre : son disque éphémère ne convient pas. Un jeton expiré doit
   bloquer, jamais acquitter faussement une saisie.
 - Le journal est intégralement relu à chaque transaction. Cela limite son usage
   à un prototype ; coûts réseau, latence, quotas, taille et compactage cohérent
-  doivent être mesurés avant de le proposer pour l'usage quotidien.
+  doivent être mesurés avant de le proposer pour l'usage quotidien. L'essai réel
+  ci-dessous a duré 235,7 secondes au total dans l'environnement de test : il ne
+  permet pas de promettre une interface quotidienne fluide. Une lecture de
+  métadonnées redondante par fichier a ensuite été supprimée ; le contrôle de
+  l'eTag après téléchargement est conservé.
 - Les anciens fichiers doivent rester immuables : aucune suppression ou édition
   manuelle ; empreinte SHA-256 et chaîne détectent des corruptions, mais ne sont
   pas une signature et ne protègent pas contre un détenteur malveillant des
@@ -80,8 +87,8 @@ pas exposé par l'API. Les API ne servent jamais le dossier OneDrive.
 
 ### Connexion et essai Graph réels (opérateur, consentement préalable)
 
-Le mode client public de cette application doit être activé dans Microsoft.
-L'utilisateur doit autoriser **uniquement** le dossier de l'application et le
+Le mode client public de cette application est activé dans Microsoft.
+L'utilisateur a autorisé **uniquement** le dossier de l'application et le
 renouvellement de cette connexion. Le code ne demande pas User.Read ni l'accès
 à tous les fichiers. Ne pas placer les caches dans ce dépôt, les logs ou la PWA.
 
@@ -100,11 +107,28 @@ afficher les jetons. Le cache (permissions 0600, remplacement atomique) convient
 
 Le probe crée un dossier neuf `verification-synthetique-<aléatoire>` dans
 l'approot de l'application, et deux petits fichiers fictifs. Il ne supprime
-rien. Deux sessions de dépôt sont ouvertes avant la mise en concurrence du
-dernier segment ; une seule doit réussir, l'autre doit refuser le conflit, puis
+rien. Les deux tentatives de création de session se terminent avant tout dépôt ;
+Microsoft peut déjà refuser la seconde à cette étape. Une seule écriture doit
+réussir, l'autre doit refuser le conflit, puis
 le contenu gagnant est relu. Un succès ne valide pas encore la latence, le
-compactage, la restauration ou la durabilité OAuth en production. Aucun essai
-Graph réel n'a encore été exécuté.
+compactage, la restauration ou la durabilité OAuth en production.
+
+Les premiers essais ont révélé une erreur de synchronisation dans le probe :
+une session refusée ne libérait pas l'autre participant. Le correctif est couvert
+par deux tests de régression (refus à la création de session ou au dépôt).
+L'essai corrigé passe en réel : un succès et un conflit à la création de session.
+
+Le journal SQL a aussi été éprouvé dans ce dossier fictif : initialisation,
+enregistrement d'un animal fictif, reconstruction depuis une nouvelle instance,
+répétition exacte de l'opération puis comptage. Résultat réel : un seul
+enregistrement, une seule modification et le même reçu lors du nouvel envoi.
+Durée totale mesurée : 235,7 secondes. Aucun animal de référence ni utilisateur
+réel n'a été importé. Cette restauration réussie ne résout pas les limites de
+performance et de conservation durable des jetons sur Render.
+
+La suite Python compte maintenant 50 tests réussis, dont deux régressions du
+probe et un contrôle du téléchargement optimisé : l'eTag est toujours comparé
+après lecture et le jeton Graph n'est jamais transmis à l'hôte de stockage.
 
 `tests/test_microsoft_auth.py` vérifie les délais de polling, le refus/expiration,
 le rejet des droits élargis, les caches privés et la rotation après redémarrage.

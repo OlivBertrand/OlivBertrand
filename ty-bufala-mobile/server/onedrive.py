@@ -38,8 +38,9 @@ class Graph:
         except HTTPError as error:
             raise GraphError(error.code) from None
 
-    def download(self,drive,item):
-        info=self.call('drives/'+quote(drive,safe='')+'/items/'+quote(item,safe=''))
+    def download(self,drive,item,metadata=None):
+        info=metadata if metadata is not None else self.call('drives/'+quote(drive,safe='')+'/items/'+quote(item,safe=''))
+        if info.get('id') != item:raise RuntimeError('Métadonnées du fichier différentes')
         url=info.get('@microsoft.graph.downloadUrl','')
         if urlsplit(url).scheme!='https':raise RuntimeError('URL de téléchargement privée absente')
         # Preauthenticated URL; NEVER forward the Graph bearer token to its storage host.
