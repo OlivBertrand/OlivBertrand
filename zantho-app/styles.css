@@ -73,3 +73,15 @@
   .modal{padding:14px}
   .timeline-row{grid-template-columns:auto 1fr}.timeline-row small{grid-column:2;text-align:left}
 }
+
+.mini-delete{border:0;background:transparent;color:#a33;font-size:11px;padding:4px 6px;border-radius:8px;justify-self:end}
+.mini-delete:active{background:#fdeaea}
+.observation-row,.harvest-session-row{grid-template-columns:auto 1fr auto auto}
+.danger-zone{margin-top:16px;border-top:1px solid var(--border);padding-top:10px}
+.danger-zone summary{color:#8f2929;font-size:12px;margin-bottom:10px}
+.safety-card{margin-top:12px}
+@media(max-width:430px){
+  .observation-row,.harvest-session-row{grid-template-columns:auto 1fr auto}
+  .observation-row small,.harvest-session-row small{grid-column:2}
+  .observation-row .mini-delete,.harvest-session-row .mini-delete{grid-column:3;grid-row:1/3}
+}
