@@ -13,15 +13,35 @@ function openPlant(id){
   loadPlantPhotos(id,m.querySelector('#plantPhotos'));
 }
 function openObservation(plantId,parent){
-  const m=openModal(`<h2>Nouvelle observation — ${plantId}</h2><form id="obsForm" class="stack">
+  const p=state.plants.find(x=>x.id===plantId);
+  const prev=state.observations.filter(o=>o.plantId===plantId).sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0]||null;
+  const defaults={
+    vigor:prev?.vigor||p?.vigor||'Correcte',
+    health:prev?.health||p?.status||'Sain',
+    flowering:prev?.flowering||'Absente',
+    fruiting:prev?.fruiting||'Absente'
+  };
+  const opts=(values,current)=>values.map(x=>`<option ${x===current?'selected':''}>${x}</option>`).join('');
+  const m=openModal(`<h2>Observation détaillée — ${plantId}</h2><form id="obsForm" class="stack">
     <div class="field"><label>Date</label><input type="date" name="date" value="${new Date().toISOString().slice(0,10)}"></div>
-    <div class="field"><label>Vigueur</label><select name="vigor">${['Très faible','Faible','Correcte','Bonne','Très bonne'].map(x=>`<option>${x}</option>`).join('')}</select></div>
-    <div class="field"><label>État sanitaire</label><select name="health">${['Sain','À surveiller','Problème'].map(x=>`<option>${x}</option>`).join('')}</select></div>
-    <div class="field"><label>Floraison</label><select name="flowering">${['Absente','Faible','Moyenne','Forte'].map(x=>`<option>${x}</option>`).join('')}</select></div>
-    <div class="field"><label>Fructification</label><select name="fruiting">${['Absente','Faible','Moyenne','Forte'].map(x=>`<option>${x}</option>`).join('')}</select></div>
-    <div class="grid two"><div class="field"><label>Hauteur (cm, facultatif)</label><input type="number" name="height"></div><div class="field"><label>Largeur (cm, facultatif)</label><input type="number" name="width"></div></div>
-    <div class="field"><label>Commentaire</label><textarea name="note"></textarea></div><button class="btn">Enregistrer</button></form>`);
-  m.querySelector('#obsForm').onsubmit=e=>{e.preventDefault(); const f=new FormData(e.target); state.observations.push({id:uid('obs'),plantId,...Object.fromEntries(f.entries()),createdAt:nowISO()}); save(); m.remove(); parent.remove(); render();};
+    <div class="field"><label>Vigueur</label><select name="vigor">${opts(['Très faible','Faible','Correcte','Bonne','Très bonne'],defaults.vigor)}</select></div>
+    <div class="field"><label>État sanitaire</label><select name="health">${opts(['Sain','À surveiller','Problème'],defaults.health)}</select></div>
+    <div class="field"><label>Floraison</label><select name="flowering">${opts(['Absente','Faible','Moyenne','Forte'],defaults.flowering)}</select></div>
+    <div class="field"><label>Fructification</label><select name="fruiting">${opts(['Absente','Faible','Moyenne','Forte'],defaults.fruiting)}</select></div>
+    <div class="grid two"><div class="field"><label>Hauteur (cm, facultatif)</label><input type="number" min="0" name="height" inputmode="decimal"></div><div class="field"><label>Largeur (cm, facultatif)</label><input type="number" min="0" name="width" inputmode="decimal"></div></div>
+    <div class="field"><label>Commentaire</label><textarea name="note" placeholder="Facultatif"></textarea></div>
+    <button class="btn">Enregistrer</button>
+  </form>`);
+  m.querySelector('#obsForm').onsubmit=e=>{
+    e.preventDefault();
+    const f=new FormData(e.target);
+    state.observations.push({id:uid('obs'),plantId,...Object.fromEntries(f.entries()),createdAt:nowISO(),updatedAt:nowISO()});
+    save();
+    m.remove();
+    if(parent?.remove) parent.remove();
+    render();
+    openPlant(plantId);
+  };
 }
 
 async function photoDB(){ return new Promise((resolve,reject)=>{ const req=indexedDB.open(PHOTO_DB,1); req.onupgradeneeded=()=>{ if(!req.result.objectStoreNames.contains(PHOTO_STORE)) req.result.createObjectStore(PHOTO_STORE,{keyPath:'id'}); }; req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); }); }
