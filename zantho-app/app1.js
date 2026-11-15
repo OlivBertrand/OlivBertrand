@@ -1,4 +1,4 @@
-const APP_VERSION = '0.4.0';
+const APP_VERSION = '0.5.0';
 const STORAGE_KEY = 'zantho-state-v1';
 const PHOTO_DB = 'zantho-photos-v1';
 const PHOTO_STORE = 'photos';
