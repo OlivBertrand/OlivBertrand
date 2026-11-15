@@ -14,6 +14,12 @@ from .backup import snapshot
 from .store import Store, canonical, utcnow
 
 
+class GraphError(RuntimeError):
+    def __init__(self, status):
+        self.status = status
+        super().__init__("Microsoft Graph indisponible (HTTP " + str(status) + "). Aucun accusé enregistré.")
+
+
 class NoRedirect(HTTPRedirectHandler):
     def redirect_request(self,*args):return None
 
@@ -29,7 +35,7 @@ class Graph:
         try:
             with build_opener(NoRedirect()).open(request,timeout=30) as response:return json.load(response)
         except HTTPError as error:
-            raise RuntimeError('Microsoft Graph a refusé la requête (HTTP '+str(error.code)+'). Aucun accusé enregistré.') from None
+            raise GraphError(error.code) from None
 
     def download(self,drive,item):
         info=self.call('drives/'+quote(drive,safe='')+'/items/'+quote(item,safe=''))
@@ -54,7 +60,7 @@ class Graph:
             try:
                 with urlopen(request,timeout=60) as response:result=json.load(response)
             except HTTPError as error:
-                raise RuntimeError('Dépôt OneDrive interrompu (HTTP '+str(error.code)+'). Aucun accusé enregistré.') from None
+                raise GraphError(error.code) from None
         if not result or not result.get('id'):raise RuntimeError('Dépôt incomplet')
         verified,metadata=self.download(drive,result['id'])
         if hashlib.sha256(verified).digest()!=hashlib.sha256(content).digest():raise RuntimeError('Vérification du fichier distant échouée')

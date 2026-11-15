@@ -1,0 +1,80 @@
+# Render + OneDrive — chantier gratuit, expérimental
+
+Décision du 15 novembre 2026 : budget supplémentaire strictement nul ; conserver
+Render et OneDrive. Aucun service payant, aucune création de compte utilisateur,
+aucun import de données réelles autorisé implicitement par ces travaux.
+
+## Implémentation en branche, non activée
+
+Le serveur peut reconstruire SQLite **en mémoire** depuis une chaîne de
+transactions SQL dans un dossier OneDrive privé dédié. Les fichiers séquentiels
+`transaction-000000000001.json`, etc. sont créés avec le comportement Microsoft
+Graph `conflictBehavior=fail`. Aucun fichier existant n'est remplacé.
+
+Chaque transaction conserve les écritures de fiches, événements, identifiants,
+révisions, journal, reçus et sessions. Elle n'est acquittée qu'après publication
+et relecture de son enveloppe. Les mots de passe hachés et sessions font aussi
+partie de ce journal : son dossier ne doit jamais être public, partagé comme un
+export métier, publié sur GitHub ou servi par la PWA.
+
+Deux processus partant de la même génération doivent entrer en conflit sur le
+nom du fichier suivant : le perdant renvoie 503, le téléphone conserve les mêmes
+identifiants d'opération et réessaie. Après relecture, les révisions métier
+peuvent alors produire un conflit 409 à résoudre par l'utilisateur.
+
+Un processus interrompu après publication mais avant la réponse est récupéré
+par relecture du reçu durable. Un fichier absent au démarrage ne crée jamais
+silencieusement une exploitation vide. Une chaîne invalide bloque les écritures.
+
+Aucun verrou en mémoire ni fichier SQLite sur le disque Render n'est utilisé
+comme autorité. Le classeur Excel d'origine n'est pas modifié.
+
+## Limites qui empêchent encore une mise en service
+
+- Les tests utilisent un stockage distant de test atomique. Ils ne prouvent PAS
+  les garanties réelles de Microsoft : il faut tester deux sessions de dépôt
+  concurrentes, la visibilité des fichiers et les réponses perdues sur un dossier
+  jetable, avant toute donnée réelle. Si Graph ne garantit pas le refus atomique
+  au dernier segment, cette architecture doit être abandonnée.
+- L'accès Microsoft n'est pas configuré. Le code courant utilise un jeton Graph
+  temporaire : renouvellement OAuth et conservation durable des nouvelles
+  autorisations restent à implémenter. Un jeton expiré doit bloquer, jamais
+  acquitter faussement une saisie.
+- Le journal est intégralement relu à chaque transaction. Cela limite son usage
+  à un prototype ; coûts réseau, latence, quotas, taille et compactage cohérent
+  doivent être mesurés avant de le proposer pour l'usage quotidien.
+- Les anciens fichiers doivent rester immuables : aucune suppression ou édition
+  manuelle ; empreinte SHA-256 et chaîne détectent des corruptions, mais ne sont
+  pas une signature et ne protègent pas contre un détenteur malveillant des
+  droits OneDrive. La suppression d'une fin du journal exige une procédure de
+  détection de recul et restauration à développer.
+- Le plan Render est actuellement Free. Les plafonds de facturation du workspace
+  ne sont pas vérifiés par ces travaux : le plan Free seul ne garantit pas
+  l'absence de frais de dépassement de trafic ou de compilation.
+- La base privée `Ty_Bufala_inventaire_reference_v1.db` a été vérifiée en lecture
+  seule (`quick_check=ok`, aucune erreur de clé étrangère). Le nouvel importeur
+  `server.reference_import` a importé 98 animaux et 86 événements dans une base
+  privée locale jetable, puis vérifié un réimport sans doublon et la conservation
+  binaire complète de la source. Les 175 références parentales restent non
+  confirmées. Les notes, lignes non identifiées et descendance historique sont
+  conservées dans le rapport privé et la base archivée. Cet essai n'est pas un
+  import en production ni une vérification de la version OneDrive actuelle.
+
+## Garde-fous techniques
+
+Le chemin `DATABASE_URL=onedrive-journal://` refuse de fonctionner sans
+`TB_ONEDRIVE_EXPERIMENTAL=1`. Même avec ce drapeau, il exige
+`MS_GRAPH_ACCESS_TOKEN`, `TB_ONEDRIVE_DRIVE_ID` et
+`TB_ONEDRIVE_JOURNAL_FOLDER_ID`, puis un journal déjà initialisé. Ne pas activer
+ces variables sur le service réel avant levée des limites ci-dessus.
+
+Le bootstrap `JournalStore(remote, allow_empty=True).initialize()` est réservé
+aux tests ou à une préparation administrative explicitement validée. Il n'est
+pas exposé par l'API. Les API ne servent jamais le dossier OneDrive.
+
+## Essais
+
+`python3 -m pytest -q tests/test_onedrive_store.py` vérifie reconstruction après
+redémarrage, reçus persistants, réponse perdue, panne distante, groupe annulé,
+concurrence entre deux instances, corruption, journal manquant, lecture seule,
+blocage expérimental et absence d'accusé API sur échec distant.

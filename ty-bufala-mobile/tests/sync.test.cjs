@@ -48,3 +48,18 @@ test('two accounts, offline recovery, conflicts, durable replay, read-only and A
  const sw=require('fs').readFileSync(require('path').join(__dirname,'../sw.js'),'utf8');assert.ok(sw.includes("path.startsWith('/api/')"));
  console.log('Validated independent IndexedDB devices and real local authenticated HTTP API; no browser rendering claimed.');
 });
+
+
+test('conflict resolution preserves reference event IDs containing colons',async()=>{
+ const cloud=new CloudSync(await database(),{id:'alice',role:'admin'},'csrf-test');
+ const id='event:source:introduction';
+ const batch={id:'batch-colon',order:1,createdAt:'2026-11-15',blocked:{status:409},operations:[{kind:'events',data:{id},baseRevision:1}]};
+ await cloud.transaction(['outbox','events'],tx=>{tx.objectStore('outbox').put(batch);tx.objectStore('events').put({id,description:'local'});});
+ const paths=[];
+ cloud.request=async path=>{paths.push(path);return {data:{id,description:'remote',revision:2}};};
+ await cloud._resolve(batch.id,'remote');
+ assert.deepEqual(paths,['record/events/'+encodeURIComponent(id)]);
+ assert.equal((await cloud.all('events'))[0].id,id);
+ assert.equal((await cloud.all('events'))[0].description,'remote');
+ assert.equal((await cloud.all('outbox')).length,0);
+});

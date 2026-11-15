@@ -27,6 +27,12 @@ def create_app(database_url=None, testing=False):
     app.config['STORE'] = store
     root = Path(__file__).resolve().parent.parent
 
+    from .onedrive_store import RemoteUnavailable
+
+    @app.errorhandler(RemoteUnavailable)
+    def remote_unavailable(error):
+        return jsonify(error=str(error), code="remote_storage_unavailable"), 503
+
     @app.errorhandler(Rejected)
     def rejected(error):
         return jsonify(error=error.message, **error.details), error.status

@@ -80,7 +80,7 @@ class CloudSync {
    // A dependent group is also removed as a whole, preserving atomic birth/mother edits.
    const keys=new Set(batch.operations.map(o=>o.kind+':'+o.data.id)),removed=[];
    for(const b of batches){if(b.operations.some(o=>keys.has(o.kind+':'+o.data.id))){removed.push(b);for(const o of b.operations)keys.add(o.kind+':'+o.data.id);}}
-   const remote=[];for(const key of keys){const [kind,id]=key.split(':');remote.push({kind,id,...await this.request('record/'+kind+'/'+encodeURIComponent(id))});}
+   const remote=[];for(const key of keys){const separator=key.indexOf(':'),kind=key.slice(0,separator),id=key.slice(separator+1);remote.push({kind,id,...await this.request('record/'+kind+'/'+encodeURIComponent(id))});}
    history.removed=removed;
    await this.transaction(['outbox','conflicts','animals','events','sales'],tx=>{tx.objectStore('conflicts').put(history);for(const b of removed)tx.objectStore('outbox').delete(b.id);for(const r of remote){if(r.data)tx.objectStore(r.kind).put({...r.data,_sync:'shared'});else tx.objectStore(r.kind).delete(r.id);}});
   }

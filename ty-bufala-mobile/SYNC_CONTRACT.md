@@ -65,3 +65,23 @@ L’adaptateur comptable définitif doit, après examen du vrai code et du sché
 | traitement par opération du prototype | groupe atomique SQL |
 
 Le module en mémoire n’est pas chargé dans l’application. Les garanties du contrat sont testées contre le serveur réel local et sa persistance, puis devront être confirmées sur PostgreSQL avant les données réelles.
+
+
+## Variante Render + OneDrive (expérimentale, désactivée)
+
+Le budget est fixé à 0 €. `RENDER_ONEDRIVE.md` décrit une variante avec journal
+SQL immuable et génération distante unique. Aucun reçu n'est envoyé avant
+publication et relecture distante ; un échec conserve la file du téléphone.
+Les tests locaux ne prouvent pas l'atomicité de Microsoft Graph. Autorisation
+Microsoft, renouvellement OAuth, essais réels, performance et restauration
+restent nécessaires avant activation. Aucune base réelle n'y est déposée.
+
+Les identifiants d'entité issus de la base de référence peuvent contenir `:`.
+Ils restent stables et sont encodés dans les URL ; les clés composées du cache
+sont séparées au premier `:` uniquement. Les identifiants d'opération d'import
+sont des empreintes stables distinctes des identifiants d'entité.
+
+L'import de référence est atomique sur une destination vide, réexécutable sans
+doublon et conserve la base source entière en archive privée. Les noms de
+parents rapprochés mais non confirmés alimentent `motherCandidateTag` ou
+`fatherCandidateTag`, sans créer de lien confirmé `motherTag`/`fatherTag`.

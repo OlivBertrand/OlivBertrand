@@ -16,8 +16,8 @@ PWA Android/ordinateur avec API authentifiée et base commune. Cette branche ne 
 
 ## Mise en service restant à valider
 
-1. Choisir une base PostgreSQL durable et valider son coût. La base PostgreSQL gratuite Render expire et ne convient pas aux données réelles.
-2. Raccorder la base au serveur, tester le dialecte PostgreSQL et la restauration, puis valider la source Excel courante avant l’import initial réel.
+1. Budget fixé à **0 €**, avec Render conservé. La base PostgreSQL gratuite Render expire et ne convient pas aux données réelles. Une variante expérimentale Render + journal OneDrive est développée mais désactivée : voir `RENDER_ONEDRIVE.md` pour les essais et limites bloquantes. Aucune offre payante à souscrire.
+2. Valider le stockage choisi, sa restauration et le raccordement OneDrive avant l’import réel. L’importeur `server.reference_import` lit la base de référence SQLite en lecture seule : 98 animaux et 86 événements ont été importés en test privé local, original intact, réimport sans doublon. Les liens non confirmés restent des propositions.
 3. Valider les comptes et droits avant leur ouverture. Les tests utilisent uniquement des comptes synthétiques locaux.
 4. Microsoft Graph : `server/onedrive.py` sait télécharger une source avec contrôle ETag et déposer une sauvegarde complète dans un dossier privé, avec relecture et contrôle du SHA-256. L’authentification Microsoft et la planification ne sont pas configurées. **Ce job n’est pas une projection bidirectionnelle de l’Excel.** Il ne réécrit jamais le classeur original.
 5. Examiner le vrai code Windows et une copie cohérente de `ty_bufala.db`. Aucun import comptable Windows n’est activé. Le catalogue, les unités et les règles de TVA doivent être rapprochés avant développement de l’adaptateur définitif.

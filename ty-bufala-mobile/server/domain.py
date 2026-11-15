@@ -29,7 +29,7 @@ def valid_date(value, field):
 def validate(db, kind, data, old):
     if not isinstance(data, dict) or len(canonical(data)) > 200_000:
         raise Rejected('Enregistrement invalide ou trop volumineux.')
-    if not isinstance(data.get('id'), str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,160}', data['id']):
+    if not isinstance(data.get('id'), str) or not re.fullmatch(r'[A-Za-z0-9_:-]{1,160}', data['id']):
         raise Rejected('Identifiant stable manquant ou invalide.')
     for key, value in data.items():
         if key in ('date', 'birthDate', 'lastCalving', 'matingDate', 'expectedCalving', 'weaningDate', 'introducedAt', 'exitDate', 'nextDate', 'treatmentEnd', 'milkUntil', 'meatUntil'):
@@ -116,7 +116,7 @@ def validate(db, kind, data, old):
     if old:
         data['createdAt'] = old.get('createdAt')
         # Source rows/cells are immutable evidence, not editable phone fields.
-        for key in ('sourceCells', 'sourceRow', 'sourceDigest', 'source'):
+        for key in ('sourceCells', 'sourceRow', 'sourceDigest', 'source', 'sourceReference', 'referenceParents'):
             if key in old:
                 data[key] = old[key]
 

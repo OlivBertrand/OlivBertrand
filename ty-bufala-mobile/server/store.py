@@ -15,6 +15,12 @@ def canonical(value):
 
 
 class Store:
+    def __new__(cls, url):
+        if url == "onedrive-journal://":
+            from .onedrive_store import JournalStore
+            return JournalStore.from_environment()
+        return super().__new__(cls)
+
     def __init__(self, url):
         self.url = url
         self.postgres = url.startswith(('postgres://', 'postgresql://'))
