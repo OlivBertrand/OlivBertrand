@@ -1,13 +1,15 @@
 # Coffre OAuth privé — implémenté, essais GitHub réels en attente
 
 État au 15 novembre 2026 : code en branche, aucune activation Render et aucun
-jeton versé sur GitHub. Le renouvellement Microsoft existant a été vérifié en
+jeton versé sur GitHub. Le dépôt privé et la GitHub App sont désormais créés,
+et l'installation sur le seul dépôt du coffre a été vérifiée dans GitHub.
+Le renouvellement Microsoft existant a été vérifié en
 réel (nouveau jeton d'actualisation reçu et cache privé local remplacé). Cela ne
 valide pas encore la conservation GitHub ni un redémarrage Render.
 
 ## Architecture retenue pour les essais
 
-- Un dépôt **privé distinct**, proposé `OlivBertrand/ty-bufala-private-state`.
+- Un dépôt **privé distinct**, créé `OlivBertrand/ty-bufala-private-state`.
   Ne jamais utiliser le dépôt public du code ou un dépôt Zantho.
 - Une GitHub App installée **uniquement sur ce dépôt**, permission repository
   Contents lecture/écriture, Metadata lecture implicite, aucun webhook,
@@ -123,8 +125,36 @@ conserver d'autres champs de contrôle, mais l'ancrage indépendant du journal,
 les snapshots et les audits de ses anciens segments ne sont pas encore
 implémentés. Ne pas assimiler la réussite des tests OAuth à leur validation.
 
-La connexion navigateur GitHub est actuellement bloquée par un refus explicite
-des identifiants ; aucune nouvelle tentative automatique n'est effectuée.
+La connexion navigateur GitHub a réussi. Après autorisation explicite de
+l'utilisateur, l'App `Ty Bufala Vault OlivBertrand` a été enregistrée puis
+installée avec Contents lecture/écriture et Metadata lecture, sur un seul dépôt.
+
+| Paramètre vérifié | Valeur non secrète |
+|---|---|
+| Dépôt privé | `OlivBertrand/ty-bufala-private-state` |
+| ID du dépôt | `1458886770` |
+| Branche | `main` |
+| GitHub App | `ty-bufala-vault-olivbertrand` |
+| App ID | `5774039` |
+| Installation ID | `182330440` |
+
+Le bouton GitHub `New key` a rencontré un blocage de politique URL du navigateur
+Work (protocole non autorisé). Aucune récupération de PEM n'a été confirmée et
+aucune clé n'a été enregistrée dans Render. Aucun contournement ni seconde
+tentative de génération par un autre moyen automatisé n'est effectué.
+
+Intervention nécessaire dans le navigateur habituel de l'utilisateur : ouvrir
+les réglages de cette App, Credentials → Key pairs, générer/télécharger une clé,
+puis enregistrer le contenu PEM directement dans `TB_GITHUB_PRIVATE_KEY` sur
+le service Render de test `ty-bufala-mobile-test`. Ne pas coller la clé dans le
+chat ni l'ajouter au dépôt. Les autres variables seront préparées séparément ;
+ne pas activer le stockage réel à cette occasion. Si une clé non récupérée
+existe déjà, son retrait est à prévoir après validation de la clé de remplacement.
+
+La création, l'installation et la conservation de la clé dans les secrets du
+service de test ont été approuvées par l'utilisateur. La persistance distante,
+les essais de rotation sur GitHub et le redémarrage Render ne sont pas encore
+validés.
 
 ## Validation effectuée
 
