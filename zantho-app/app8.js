@@ -4,7 +4,6 @@ const Z_AUTHORITY='https://login.microsoftonline.com/consumers';
 const Z_SYNC_SCOPE=['Files.ReadWrite.AppFolder'];
 const Z_SYNC_META_KEY='zantho-sync-meta-v2';
 const Z_REMOTE_STATE='zantho-data.json';
-const Z_REMOTE_PHOTO_DIR='photos';
 let zSyncBusy=false;
 let zSyncTimer=null;
 let zMsalCache=null;
@@ -249,21 +248,8 @@ async function zEnsureAppRoot(token){
   return r.json();
 }
 async function zEnsurePhotoFolder(token){
-  let r=await fetch(zGraphUrl(Z_REMOTE_PHOTO_DIR),{headers:{Authorization:`Bearer ${token}`}});
-  if(r.ok) return r.json();
-  if(r.status!==404) throw new Error(`Dossier photos OneDrive: ${r.status}`);
-  r=await fetch(zGraphUrl()+'/children',{
-    method:'POST',
-    headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
-    body:JSON.stringify({name:Z_REMOTE_PHOTO_DIR,folder:{},'@microsoft.graph.conflictBehavior':'fail'})
-  });
-  if(r.status===409){
-    const retry=await fetch(zGraphUrl(Z_REMOTE_PHOTO_DIR),{headers:{Authorization:`Bearer ${token}`}});
-    if(!retry.ok) throw new Error(`Dossier photos OneDrive: ${retry.status}`);
-    return retry.json();
-  }
-  if(!r.ok) throw new Error(`Création dossier photos: ${r.status}`);
-  return r.json();
+  // Plus de sous-dossier : les photos sont stockées directement dans Apps/Zantho.
+  return true;
 }
 async function zReadRemoteState(token){
   const r=await fetch(zGraphUrl(Z_REMOTE_STATE)+':/content',{headers:{Authorization:`Bearer ${token}`}});
@@ -282,7 +268,6 @@ async function zWriteRemoteState(token){
   return r.json();
 }
 async function zSyncPhotos(token,notify){
-  await zEnsurePhotoFolder(token);
   const localPhotos=await getAllPhotos();
   const localRefs=localPhotos.map(p=>({
     id:p.id,plantId:p.plantId,name:p.name,type:p.type,note:p.note||'',
@@ -314,7 +299,7 @@ async function zSyncPhotos(token,notify){
     const ref=state.photoRefs.find(x=>x.id===p.id);
     if(ref?.drivePath && p.synced) continue;
     const ext=(p.type||'').includes('png')?'png':(p.type||'').includes('heic')?'heic':'jpg';
-    const drivePath=`${Z_REMOTE_PHOTO_DIR}/${p.id}.${ext}`;
+    const drivePath=`photo-${p.id}.${ext}`;
     const up=await fetch(zGraphUrl(drivePath)+':/content',{
       method:'PUT',
       headers:{Authorization:`Bearer ${token}`,'Content-Type':p.type||'application/octet-stream'},
@@ -488,7 +473,7 @@ async function zResumeMicrosoftRedirect(){
 }
 setTimeout(zResumeMicrosoftRedirect,100);
 
-state.version='0.5.3';
+state.version='0.5.4';
 state.deleted=zDeletedShape(state.deleted);
 zInternalSyncSave=true;
 save();
