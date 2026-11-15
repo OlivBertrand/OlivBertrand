@@ -296,9 +296,10 @@ openHarvestModal=function(){
     <details><summary>Ajouter une note</summary><textarea name="note"></textarea></details>
     <button class="btn">Créer le lot</button>
   </form>`);
-  const form=m.querySelector('#harvestFormV4'), name=form.name, species=form.species;
-  const autoName=()=>{const k=species.value; name.value=`${SPECIES[k].name} ${year} — ${String((counts[k]||0)+1).padStart(2,'0')}`;};
-  species.onchange=autoName; autoName();
+  const form=m.querySelector('#harvestFormV4');
+  const nameInput=form.elements.namedItem('name'), speciesInput=form.elements.namedItem('species');
+  const autoName=()=>{const k=speciesInput.value; nameInput.value=`${SPECIES[k].name} ${year} — ${String((counts[k]||0)+1).padStart(2,'0')}`;};
+  speciesInput.onchange=autoName; autoName();
   form.onsubmit=e=>{
     e.preventDefault();
     const f=Object.fromEntries(new FormData(form).entries());
