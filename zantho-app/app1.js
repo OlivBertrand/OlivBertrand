@@ -69,8 +69,37 @@ function plantStatus(p){ return latestObsForPlant(p.id)?.health || p.status || '
 
 function render(){
   document.querySelector('#syncPill').textContent=state.settings.lastSync?`Sync ${fmtDateTime(state.settings.lastSync)}`:'Local';
-  if(!state.planConfigured && currentView!=='settings') return renderPlanSetup();
+  if(!state.planConfigured){
+    if(currentView==='plan') return renderPlanSetup();
+    if(currentView==='dashboard') return renderPrePlanDashboard();
+    if(currentView==='harvest') return renderPrePlanSection('Récoltes','Configure le plan avant de créer des lots de récolte.');
+    if(currentView==='quality') return renderPrePlanSection('Qualité','Configure le plan avant de relier récoltes, transformations et dégustations.');
+  }
   ({dashboard:renderDashboard,plan:renderPlan,harvest:renderHarvests,quality:renderQuality,settings:renderSettings}[currentView]||renderDashboard)();
+}
+
+function renderPrePlanDashboard(){
+  app.innerHTML=`
+    <div class="hero-card">
+      <div class="eyebrow">Première configuration</div>
+      <h2>Zantho est prêt</h2>
+      <p>Il reste une seule donnée à renseigner : la répartition des 46 Sichuan entre les lignes 2, 3 et 4.</p>
+      <button class="btn" id="goConfigurePlan">Configurer le plan</button>
+    </div>
+    <div class="grid two">
+      <div class="card"><h3>Déjà connu</h3><p class="small-note">L1 : 12 Sansho japonais + 10 Tasmanie · L2 : 12 Sansho coréens après les Sichuan · L4 : 10 Timut · L5 : 7 Timut.</p></div>
+      <div class="card"><h3>Pourquoi le demander ?</h3><p class="small-note">Je préfère te demander les 3 nombres exacts plutôt que d’inventer la position des Sichuan.</p></div>
+    </div>`;
+  document.querySelector('#goConfigurePlan').onclick=()=>{currentView='plan';syncNav();render();};
+}
+
+function renderPrePlanSection(title,message){
+  app.innerHTML=`<div class="section-title"><h2>${title}</h2></div>
+    <div class="card">
+      <p>${message}</p>
+      <button class="btn" id="goConfigurePlan">Configurer le plan</button>
+    </div>`;
+  document.querySelector('#goConfigurePlan').onclick=()=>{currentView='plan';syncNav();render();};
 }
 
 function renderPlanSetup(){
