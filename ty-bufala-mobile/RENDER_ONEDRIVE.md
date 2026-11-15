@@ -36,10 +36,14 @@ comme autorité. Le classeur Excel d'origine n'est pas modifié.
   concurrentes, la visibilité des fichiers et les réponses perdues sur un dossier
   jetable, avant toute donnée réelle. Si Graph ne garantit pas le refus atomique
   au dernier segment, cette architecture doit être abandonnée.
-- L'accès Microsoft n'est pas configuré. Le code courant utilise un jeton Graph
-  temporaire : renouvellement OAuth et conservation durable des nouvelles
-  autorisations restent à implémenter. Un jeton expiré doit bloquer, jamais
-  acquitter faussement une saisie.
+- L'application Microsoft `Ty Bufala Mobile Render` est enregistrée pour les
+  comptes personnels (client `ebf06cf9-f27b-40bd-9b02-383e8b48a8de`). Les droits
+  AppFolder et offline_access sont déclarés ; aucun consentement effectif n'a
+  encore été donné. `server.microsoft_auth` prépare une connexion par code
+  d'appareil et renouvelle les jetons dans un cache local privé, uniquement pour
+  les essais opérateur. La conservation durable de cette rotation sur Render
+  reste à résoudre : son disque éphémère ne convient pas. Un jeton expiré doit
+  bloquer, jamais acquitter faussement une saisie.
 - Le journal est intégralement relu à chaque transaction. Cela limite son usage
   à un prototype ; coûts réseau, latence, quotas, taille et compactage cohérent
   doivent être mesurés avant de le proposer pour l'usage quotidien.
@@ -73,6 +77,37 @@ aux tests ou à une préparation administrative explicitement validée. Il n'est
 pas exposé par l'API. Les API ne servent jamais le dossier OneDrive.
 
 ## Essais
+
+### Connexion et essai Graph réels (opérateur, consentement préalable)
+
+Le mode client public de cette application doit être activé dans Microsoft.
+L'utilisateur doit autoriser **uniquement** le dossier de l'application et le
+renouvellement de cette connexion. Le code ne demande pas User.Read ni l'accès
+à tous les fichiers. Ne pas placer les caches dans ce dépôt, les logs ou la PWA.
+
+Depuis `ty-bufala-mobile`, avec des chemins privés en dehors du dépôt :
+
+```sh
+python3 -m server.microsoft_auth begin --pending /CHEMIN_PRIVE/microsoft-pending.json
+python3 -m server.microsoft_auth poll --pending /CHEMIN_PRIVE/microsoft-pending.json --tokens /CHEMIN_PRIVE/microsoft-tokens.json
+python3 -m tools.onedrive_probe --tokens /CHEMIN_PRIVE/microsoft-tokens.json
+```
+
+`begin` affiche seulement le code utilisateur et l'adresse Microsoft. `poll`
+effectue une seule vérification et indique le délai avant de réessayer, sans
+afficher les jetons. Le cache (permissions 0600, remplacement atomique) convient
+à un opérateur unique sur disque privé persistant, pas à plusieurs processus.
+
+Le probe crée un dossier neuf `verification-synthetique-<aléatoire>` dans
+l'approot de l'application, et deux petits fichiers fictifs. Il ne supprime
+rien. Deux sessions de dépôt sont ouvertes avant la mise en concurrence du
+dernier segment ; une seule doit réussir, l'autre doit refuser le conflit, puis
+le contenu gagnant est relu. Un succès ne valide pas encore la latence, le
+compactage, la restauration ou la durabilité OAuth en production. Aucun essai
+Graph réel n'a encore été exécuté.
+
+`tests/test_microsoft_auth.py` vérifie les délais de polling, le refus/expiration,
+le rejet des droits élargis, les caches privés et la rotation après redémarrage.
 
 `python3 -m pytest -q tests/test_onedrive_store.py` vérifie reconstruction après
 redémarrage, reçus persistants, réponse perdue, panne distante, groupe annulé,

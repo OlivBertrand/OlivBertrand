@@ -29,7 +29,8 @@ class Graph:
 
     def call(self,path,method='GET',body=None):
         url='https://graph.microsoft.com/v1.0/'+path.lstrip('/')
-        headers={'Authorization':'Bearer '+self.token,'Accept':'application/json'}
+        token = self.token() if callable(self.token) else self.token
+        headers={'Authorization':'Bearer '+token,'Accept':'application/json'}
         if body is not None:headers['Content-Type']='application/json'
         request=Request(url,data=json.dumps(body).encode() if body is not None else None,headers=headers,method=method)
         try:
