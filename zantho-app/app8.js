@@ -165,22 +165,11 @@ async function zGetMsal(){
     auth:{
       clientId,
       authority:Z_AUTHORITY,
-      redirectUri:location.origin+'/'
+      redirectUri:location.origin+'/auth.html'
     },
-    cache:{cacheLocation:'localStorage'}
+    cache:{cacheLocation:'localStorage'},system:{enableLegacyPolling:true,navigatePopups:false}
   });
   await appMsal.initialize();
-  try{
-    await appMsal.handleRedirectPromise();
-    if(location.hash && /error=|code=/.test(location.hash)){
-      history.replaceState(null,document.title,location.pathname+location.search);
-    }
-  }catch(err){
-    console.warn('MSAL redirect',err);
-    if(location.hash && /error=|code=/.test(location.hash)){
-      history.replaceState(null,document.title,location.pathname+location.search);
-    }
-  }
   zMsalCache=appMsal;
   zMsalClientId=clientId;
   return appMsal;
@@ -191,16 +180,15 @@ async function zAccessToken(interactive=false){
   if(!account){
     if(!interactive) return null;
     try{
-      const login=await msal.loginPopup({scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY});
+      const login=await msal.loginPopup({scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY,redirectUri:location.origin+'/auth.html'});
       account=login.account;
     }catch(err){
       console.warn('MSAL popup',err);
-      await msal.loginRedirect({scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY});
-      return null;
+      throw new Error('Connexion Microsoft interrompue ou popup bloquée.');
     }
   }
   try{
-    const t=await msal.acquireTokenSilent({account,scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY});
+    const t=await msal.acquireTokenSilent({account,scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY,redirectUri:location.origin+'/auth.html'});
     zSetSyncMeta({account:account.username||account.name||'',needsLogin:false});
     return t.accessToken;
   }catch(err){
@@ -209,13 +197,12 @@ async function zAccessToken(interactive=false){
       return null;
     }
     try{
-      const t=await msal.acquireTokenPopup({account,scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY});
+      const t=await msal.acquireTokenPopup({account,scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY,redirectUri:location.origin+'/auth.html'});
       zSetSyncMeta({account:account.username||account.name||'',needsLogin:false});
       return t.accessToken;
     }catch(err){
       console.warn('MSAL token popup',err);
-      await msal.acquireTokenRedirect({account,scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY});
-      return null;
+      throw new Error('Renouvellement Microsoft interrompu ou popup bloquée.');
     }
   }
 }
@@ -442,7 +429,7 @@ renderSettings=function(){
   };
 };
 
-state.version='0.5.1';
+state.version='0.5.2';
 state.deleted=zDeletedShape(state.deleted);
 zInternalSyncSave=true;
 save();
