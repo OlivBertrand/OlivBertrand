@@ -72,7 +72,7 @@ function enforceOfficialPlan(){
     +state.plan?.sichuanLine4!==6 ||
     target.some(t=>{
       const old=oldById.get(t.id);
-      return !old || old.species!==t.species || old.line!==t.line || old.position!==t.position;
+      return !old || old.species!==t.species || old.line!==t.line || old.position!==t.position || old.code!==t.code || old.groupCode!==t.groupCode;
     });
 
   if(!layoutMismatch) return;
@@ -103,7 +103,7 @@ if ('serviceWorker' in navigator) {
 }
 
 const app=document.querySelector('#app');
-let currentView='dashboard';
+let currentView='plan';
 let qualityTab='transformations';
 
 document.querySelectorAll('.bottom-nav button').forEach(b=>b.addEventListener('click',()=>{
