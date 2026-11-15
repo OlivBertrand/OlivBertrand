@@ -163,13 +163,23 @@ async function zGetMsal(){
   const appMsal=new PublicClientApplication({
     auth:{
       clientId,
-      authority:'https://login.microsoftonline.com/common',
+      authority:'https://login.microsoftonline.com/consumers',
       redirectUri:location.origin+'/'
     },
     cache:{cacheLocation:'localStorage'}
   });
   await appMsal.initialize();
-  try{ await appMsal.handleRedirectPromise(); }catch(err){ console.warn('MSAL redirect',err); }
+  try{
+    await appMsal.handleRedirectPromise();
+    if(location.hash && /error=|code=/.test(location.hash)){
+      history.replaceState(null,document.title,location.pathname+location.search);
+    }
+  }catch(err){
+    console.warn('MSAL redirect',err);
+    if(location.hash && /error=|code=/.test(location.hash)){
+      history.replaceState(null,document.title,location.pathname+location.search);
+    }
+  }
   zMsalCache=appMsal;
   zMsalClientId=clientId;
   return appMsal;
