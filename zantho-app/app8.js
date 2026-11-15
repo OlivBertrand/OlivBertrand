@@ -168,6 +168,7 @@ async function zGetMsal(){
     cache:{cacheLocation:'localStorage'}
   });
   await appMsal.initialize();
+  try{ await appMsal.handleRedirectPromise(); }catch(err){ console.warn('MSAL redirect',err); }
   zMsalCache=appMsal;
   zMsalClientId=clientId;
   return appMsal;
@@ -177,8 +178,14 @@ async function zAccessToken(interactive=false){
   let account=msal.getAllAccounts()[0]||null;
   if(!account){
     if(!interactive) return null;
-    const login=await msal.loginPopup({scopes:Z_SYNC_SCOPE});
-    account=login.account;
+    try{
+      const login=await msal.loginPopup({scopes:Z_SYNC_SCOPE});
+      account=login.account;
+    }catch(err){
+      console.warn('MSAL popup',err);
+      await msal.loginRedirect({scopes:Z_SYNC_SCOPE});
+      return null;
+    }
   }
   try{
     const t=await msal.acquireTokenSilent({account,scopes:Z_SYNC_SCOPE});
@@ -189,9 +196,15 @@ async function zAccessToken(interactive=false){
       zSetSyncMeta({needsLogin:true});
       return null;
     }
-    const t=await msal.acquireTokenPopup({account,scopes:Z_SYNC_SCOPE});
-    zSetSyncMeta({account:account.username||account.name||'',needsLogin:false});
-    return t.accessToken;
+    try{
+      const t=await msal.acquireTokenPopup({account,scopes:Z_SYNC_SCOPE});
+      zSetSyncMeta({account:account.username||account.name||'',needsLogin:false});
+      return t.accessToken;
+    }catch(err){
+      console.warn('MSAL token popup',err);
+      await msal.acquireTokenRedirect({account,scopes:Z_SYNC_SCOPE});
+      return null;
+    }
   }
 }
 async function zEnsureAppRoot(token){
@@ -411,6 +424,7 @@ renderSettings=function(){
   };
 };
 
+state.version='0.5.0';
 state.deleted=zDeletedShape(state.deleted);
 zInternalSyncSave=true;
 save();
