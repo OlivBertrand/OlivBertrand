@@ -1,4 +1,4 @@
-const APP_VERSION = '0.2.0';
+const APP_VERSION = '0.4.0';
 const STORAGE_KEY = 'zantho-state-v1';
 const PHOTO_DB = 'zantho-photos-v1';
 const PHOTO_STORE = 'photos';
@@ -48,9 +48,9 @@ function buildPlants(l2,l3,l4){
   return plants;
 }
 
-// iOS compatibility reset: no service worker registration for now.
+// Hors-ligne : réseau d'abord, cache de secours.
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then(regs=>regs.forEach(r=>r.unregister())).catch(()=>{});
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=0.4.0').catch(err=>console.warn('Service worker',err)));
 }
 
 const app=document.querySelector('#app');
