@@ -53,7 +53,8 @@ function segVal(root,name){ return root.querySelector('.seg[data-seg="'+name+'"]
 
 function renderDashboard(){
   const now=Date.now();
-  const last30=new Set(state.observations.filter(o=>now-new Date(o.date).getTime()<=30*86400000).map(o=>o.plantId)).size;
+  const today=new Date().toISOString().slice(0,10);
+  const seenToday=new Set(state.observations.filter(o=>o.date===today).map(o=>o.plantId)).size;
   const issues=state.plants.filter(p=>['À surveiller','Problème'].includes(plantStatus(p)));
   const never=state.plants.filter(p=>!latestObs(p.id)).length;
   const active=state.activeHarvestSession && state.harvests.find(h=>h.id===state.activeHarvestSession.harvestId);
@@ -80,7 +81,7 @@ function renderDashboard(){
 
     <div class="grid kpis dashboard-kpis">
       <button class="card kpi tappable" id="issuesKpi"><strong>${issues.length}</strong><span>à surveiller</span></button>
-      <div class="card kpi"><strong>${last30}</strong><span>vus sur 30 j</span></div>
+      <div class="card kpi"><strong>${seenToday}</strong><span>vus aujourd’hui</span></div>
       <div class="card kpi"><strong>${never}</strong><span>jamais observés</span></div>
       <div class="card kpi"><strong>${state.harvests.length}</strong><span>lots de récolte</span></div>
     </div>
@@ -203,7 +204,12 @@ function openQuickObs(plantId,onDone=null){
 }
 
 function openTour(ids=null,index=0){
-  ids=ids||state.plants.slice().sort((a,b)=>a.line-b.line||a.position-b.position).map(p=>p.id);
+  if(!ids){
+    const today=new Date().toISOString().slice(0,10);
+    const ordered=state.plants.slice().sort((a,b)=>a.line-b.line||a.position-b.position);
+    const remaining=ordered.filter(p=>latestObs(p.id)?.date!==today);
+    ids=(remaining.length?remaining:ordered).map(p=>p.id);
+  }
   if(index>=ids.length){ alert('Tournée terminée.'); render(); return; }
   const id=ids[index], p=state.plants.find(x=>x.id===id), d=defaultsForPlant(id);
   const m=openModal(`<div class="tour-head"><div><div class="eyebrow">Tournée · ${index+1}/${ids.length}</div><h2>${id}</h2><div class="muted">${SPECIES[p.species].name} · ligne ${p.line}</div></div><progress max="${ids.length}" value="${index+1}"></progress></div>
