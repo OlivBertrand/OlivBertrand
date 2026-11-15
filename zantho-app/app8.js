@@ -1,5 +1,6 @@
 // Zantho V0.5 — synchronisation OneDrive intelligente, locale-first
 const Z_DEFAULT_CLIENT_ID='b85fa32f-bd0a-4a66-9b5d-fed8cac13556';
+const Z_AUTHORITY='https://login.microsoftonline.com/consumers';
 const Z_SYNC_SCOPE=['Files.ReadWrite.AppFolder'];
 const Z_SYNC_META_KEY='zantho-sync-meta-v2';
 const Z_REMOTE_STATE='zantho-data.json';
@@ -163,7 +164,7 @@ async function zGetMsal(){
   const appMsal=new PublicClientApplication({
     auth:{
       clientId,
-      authority:'https://login.microsoftonline.com/consumers',
+      authority:Z_AUTHORITY,
       redirectUri:location.origin+'/'
     },
     cache:{cacheLocation:'localStorage'}
@@ -190,16 +191,16 @@ async function zAccessToken(interactive=false){
   if(!account){
     if(!interactive) return null;
     try{
-      const login=await msal.loginPopup({scopes:Z_SYNC_SCOPE});
+      const login=await msal.loginPopup({scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY});
       account=login.account;
     }catch(err){
       console.warn('MSAL popup',err);
-      await msal.loginRedirect({scopes:Z_SYNC_SCOPE});
+      await msal.loginRedirect({scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY});
       return null;
     }
   }
   try{
-    const t=await msal.acquireTokenSilent({account,scopes:Z_SYNC_SCOPE});
+    const t=await msal.acquireTokenSilent({account,scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY});
     zSetSyncMeta({account:account.username||account.name||'',needsLogin:false});
     return t.accessToken;
   }catch(err){
@@ -208,12 +209,12 @@ async function zAccessToken(interactive=false){
       return null;
     }
     try{
-      const t=await msal.acquireTokenPopup({account,scopes:Z_SYNC_SCOPE});
+      const t=await msal.acquireTokenPopup({account,scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY});
       zSetSyncMeta({account:account.username||account.name||'',needsLogin:false});
       return t.accessToken;
     }catch(err){
       console.warn('MSAL token popup',err);
-      await msal.acquireTokenRedirect({account,scopes:Z_SYNC_SCOPE});
+      await msal.acquireTokenRedirect({account,scopes:Z_SYNC_SCOPE,authority:Z_AUTHORITY});
       return null;
     }
   }
@@ -441,7 +442,7 @@ renderSettings=function(){
   };
 };
 
-state.version='0.5.0';
+state.version='0.5.1';
 state.deleted=zDeletedShape(state.deleted);
 zInternalSyncSave=true;
 save();
