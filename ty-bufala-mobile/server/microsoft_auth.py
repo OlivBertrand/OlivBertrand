@@ -91,15 +91,22 @@ def poll(path, token_path, request=post, clock=time.time):
 
 
 def _save_tokens(path, result, now):
+    save_private(path, token_record(result, now))
+
+
+def token_record(result, now):
     granted = set(result.get('scope', '').split())
     allowed = {'Files.ReadWrite.AppFolder', 'https://graph.microsoft.com/Files.ReadWrite.AppFolder',
                'offline_access'}
     if not granted or not granted <= allowed or not any('AppFolder' in s for s in granted):
         raise AuthenticationError('Autorisations Microsoft inattendues : accès non enregistré.')
-    save_private(path, {'access_token': result['access_token'],
-                        'refresh_token': result['refresh_token'],
-                        'expires_at': now + int(result['expires_in']),
-                        'scope': result['scope']})
+    if not all(isinstance(result.get(key), str) and result[key]
+               for key in ('access_token', 'refresh_token')):
+        raise AuthenticationError('Autorisation Microsoft incomplète.')
+    return {'access_token': result['access_token'],
+            'refresh_token': result['refresh_token'],
+            'expires_at': now + int(result['expires_in']),
+            'scope': result['scope']}
 
 
 class LocalTokenProvider:

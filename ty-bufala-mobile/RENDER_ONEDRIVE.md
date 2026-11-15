@@ -47,6 +47,9 @@ comme autorité. Le classeur Excel d'origine n'est pas modifié.
   les essais opérateur. La conservation durable de cette rotation sur Render
   reste à résoudre : son disque éphémère ne convient pas. Un jeton expiré doit
   bloquer, jamais acquitter faussement une saisie.
+  Le coffre chiffré GitHub privé est désormais implémenté en branche, avec
+  renouvellement des accès GitHub App et écritures conditionnelles : voir
+  `OAUTH_VAULT.md`. Ses essais distants et son activation restent en attente.
 - Le journal est intégralement relu à chaque transaction. Cela limite son usage
   à un prototype ; coûts réseau, latence, quotas, taille et compactage cohérent
   doivent être mesurés avant de le proposer pour l'usage quotidien. L'essai réel

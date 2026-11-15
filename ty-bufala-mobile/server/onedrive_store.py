@@ -90,10 +90,17 @@ class JournalStore:
     def from_environment(cls):
         if os.environ.get('TB_ONEDRIVE_EXPERIMENTAL') != '1':
             raise RemoteUnavailable('Stockage OneDrive expérimental désactivé ; validation réelle requise.')
-        required = ('MS_GRAPH_ACCESS_TOKEN', 'TB_ONEDRIVE_DRIVE_ID', 'TB_ONEDRIVE_JOURNAL_FOLDER_ID')
+        required = ('TB_ONEDRIVE_DRIVE_ID', 'TB_ONEDRIVE_JOURNAL_FOLDER_ID')
         if any(not os.environ.get(key) for key in required):
             raise RemoteUnavailable('Autorisation Microsoft et dossier privé requis.')
-        return cls(GraphJournal(Graph(os.environ[required[0]]), os.environ[required[1]], os.environ[required[2]]))
+        if os.environ.get('TB_OAUTH_VAULT') == 'github':
+            from .oauth_vault import from_environment, DurableTokenProvider
+            token = DurableTokenProvider(from_environment())
+        elif not os.environ.get('TB_OAUTH_VAULT') and os.environ.get('MS_GRAPH_ACCESS_TOKEN'):
+            token = os.environ['MS_GRAPH_ACCESS_TOKEN']  # isolated legacy trials only
+        else:
+            raise RemoteUnavailable('Coffre Microsoft privé non configuré.')
+        return cls(GraphJournal(Graph(token), os.environ[required[0]], os.environ[required[1]]))
 
     def _load(self):
         db = sqlite3.connect(':memory:')
