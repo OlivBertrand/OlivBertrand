@@ -50,7 +50,7 @@ function buildPlants(l2,l3,l4){
 
 // Hors-ligne : réseau d'abord, cache de secours.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=0.4.2').catch(err=>console.warn('Service worker',err)));
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=0.5.0').catch(err=>console.warn('Service worker',err)));
 }
 
 const app=document.querySelector('#app');
