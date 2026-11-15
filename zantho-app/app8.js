@@ -1,4 +1,5 @@
 // Zantho V0.5 — synchronisation OneDrive intelligente, locale-first
+const Z_DEFAULT_CLIENT_ID='b85fa32f-bd0a-4a66-9b5d-fed8cac13556';
 const Z_SYNC_SCOPE=['Files.ReadWrite.AppFolder'];
 const Z_SYNC_META_KEY='zantho-sync-meta-v2';
 const Z_REMOTE_STATE='zantho-data.json';
@@ -155,7 +156,7 @@ function zGraphUrl(path=''){
     : 'https://graph.microsoft.com/v1.0/me/drive/special/approot';
 }
 async function zGetMsal(){
-  const clientId=(state.settings.clientId||'').trim();
+  const clientId=(state.settings.clientId||Z_DEFAULT_CLIENT_ID||'').trim();
   if(!clientId) throw new Error('Client ID Microsoft manquant');
   if(zMsalCache && zMsalClientId===clientId) return zMsalCache;
   const {PublicClientApplication}=await import('https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.29.0/+esm');
@@ -299,7 +300,7 @@ async function zSyncPhotos(token,notify){
 
 async function zRunSync({interactive=false,reason='manuel'}={}){
   if(zSyncBusy) return {status:'busy'};
-  if(!state.settings.clientId) return {status:'not-configured'};
+  if(!(state.settings.clientId||Z_DEFAULT_CLIENT_ID)) return {status:'not-configured'};
   if(!navigator.onLine) return {status:'offline'};
   zSyncBusy=true;
   const started=Date.now();
@@ -353,7 +354,7 @@ async function zRunSync({interactive=false,reason='manuel'}={}){
 syncOneDrive=async function(){ return zRunSync({interactive:true,reason:'manuel'}); };
 
 function scheduleOneDriveSync(reason='modification',delay=12000){
-  if(zInternalSyncSave || !state.settings?.syncEnabled || !state.settings?.clientId || !navigator.onLine) return;
+  if(zInternalSyncSave || !state.settings?.syncEnabled || !(state.settings?.clientId||Z_DEFAULT_CLIENT_ID) || !navigator.onLine) return;
   clearTimeout(zSyncTimer);
   zSyncTimer=setTimeout(()=>zRunSync({interactive:false,reason}),delay);
 }
@@ -387,7 +388,7 @@ renderSettings=function(){
     <h3>OneDrive</h3>
     <p class="small-note">Copie durable et synchro iPhone ↔ PC. Zantho utilise uniquement son dossier d’application OneDrive via la permission minimale <code>Files.ReadWrite.AppFolder</code>.</p>
     <form id="syncSettingsV2" class="stack">
-      <div class="field"><label>Client ID Microsoft Entra</label><input name="clientId" value="${esc(state.settings.clientId||'')}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off"></div>
+      <div class="field"><label>Client ID Microsoft Entra</label><input name="clientId" value="${esc(state.settings.clientId||Z_DEFAULT_CLIENT_ID)}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off"></div>
       <div class="notice"><strong>Configuration Microsoft Entra</strong><br>
         1. Nom de l’application : <strong>Zantho</strong><br>
         2. Plateforme : <strong>Single-page application (SPA)</strong><br>
