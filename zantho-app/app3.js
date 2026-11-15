@@ -30,10 +30,18 @@ function openTasting(){
 
 function renderSettings(){
   app.innerHTML=`<div class="section-title"><h2>Réglages</h2></div>
-  <div class="grid two"><div class="card"><h3>Plan</h3><p class="small-note">Répartition actuelle des 46 Sichuan.</p><form id="planEdit" class="stack"><div class="field"><label>Ligne 2</label><input type="number" name="l2" value="${state.plan.sichuanLine2??''}"></div><div class="field"><label>Ligne 3</label><input type="number" name="l3" value="${state.plan.sichuanLine3??''}"></div><div class="field"><label>Ligne 4</label><input type="number" name="l4" value="${state.plan.sichuanLine4??''}"></div><button class="btn secondary">Recalibrer le plan</button></form></div>
+  <div class="grid two"><div class="card"><h3>Plan réel</h3><p class="small-note">Implantation de référence enregistrée le 15/11/2026.</p>
+    <div class="detail-table">
+      <div><span>Ligne 1</span><strong>10 Tasmanie → 12 Sansho japonais</strong></div>
+      <div><span>Ligne 2</span><strong>12 Sansho coréens → 17 Sichuan</strong></div>
+      <div><span>Ligne 3</span><strong>23 Sichuan</strong></div>
+      <div><span>Ligne 4</span><strong>6 Sichuan → 10 Timut</strong></div>
+      <div><span>Ligne 5</span><strong>7 Timut</strong></div>
+    </div>
+    <p class="small-note">97 plants au total. Les modifications futures se feront plant par plant pour préserver l’historique.</p>
+  </div>
   <div class="card"><h3>OneDrive</h3><p class="small-note">Synchronisation via Microsoft Graph. Le client ID provient d’une application SPA Microsoft Entra. Aucun secret n’est stocké.</p><form id="syncSettings" class="stack"><div class="field"><label>Client ID Microsoft</label><input name="clientId" value="${esc(state.settings.clientId||'')}" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"></div><div class="field"><label>Dossier OneDrive</label><input name="folder" value="${esc(state.settings.oneDriveFolder||'Zantho/ZanthoApp')}"></div><button class="btn secondary">Enregistrer</button></form><button class="btn" id="syncNow" style="margin-top:10px">Synchroniser maintenant</button><div id="syncMsg" class="small-note" style="margin-top:8px"></div></div></div>
   <div class="card" style="margin-top:12px"><h3>Sauvegarde locale</h3><div class="row"><button class="btn secondary" id="exportJson">Exporter JSON</button><label class="btn secondary" style="display:inline-block">Importer JSON<input id="importJson" type="file" accept="application/json" style="display:none"></label></div></div>`;
-  document.querySelector('#planEdit').onsubmit=e=>{e.preventDefault(); const f=new FormData(e.target); const l2=+f.get('l2'),l3=+f.get('l3'),l4=+f.get('l4'); try{ const newPlants=buildPlants(l2,l3,l4); if(!confirm('Recréer les positions des plants ? Les observations existantes restent attachées aux identifiants identiques.')) return; state.plants=newPlants; state.plan={sichuanLine2:l2,sichuanLine3:l3,sichuanLine4:l4}; state.planConfigured=true; state.planUpdatedAt=nowISO(); save(); renderSettings(); }catch(err){alert(err.message);} };
   document.querySelector('#syncSettings').onsubmit=e=>{e.preventDefault(); const f=new FormData(e.target); state.settings.clientId=f.get('clientId').trim(); state.settings.oneDriveFolder=f.get('folder').trim()||'Zantho/ZanthoApp'; save(); document.querySelector('#syncMsg').textContent='Réglages enregistrés.';};
   document.querySelector('#syncNow').onclick=syncOneDrive;
   document.querySelector('#exportJson').onclick=()=>downloadBlob(new Blob([JSON.stringify(state,null,2)],{type:'application/json'}),`zantho-backup-${new Date().toISOString().slice(0,10)}.json`);
