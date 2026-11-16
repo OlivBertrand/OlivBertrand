@@ -78,7 +78,7 @@ function renderPlan(){
       <button class="btn small secondary" id="planTour">Tournée</button>
     </div>
 
-    <input class="search" id="plantSearch" placeholder="Rechercher L2-SIC-04, Timut, coréen…">
+    <input class="search" id="plantSearch" placeholder="Rechercher code, surnom, espèce… ex. myso">
 
     <div class="field-plan">
       ${lines.map(arr=>{
@@ -260,7 +260,7 @@ function openPlant(id){
   loadPlantPhotos(id,m.querySelector('#plantPhotos'));
 }
 
-state.version='0.6.1';
+state.version='0.6.2';
 save();
 currentView='plan';
 if(typeof syncNav==='function') syncNav();
