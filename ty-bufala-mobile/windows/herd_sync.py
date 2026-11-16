@@ -4,12 +4,14 @@ No second business database, no automatic production migration. The host must
 explicitly initialize these prefixed tables on a reviewed development copy.
 Transport credentials live in memory, never in SQLite or logs.
 """
+
 import json
 import threading
 import uuid
-from contextlib import contextmanager
+from contextlib import contextmanager, closing
 from datetime import datetime, timezone
-from urllib.request import Request, build_opener, HTTPCookieProcessor
+from urllib.request import Request, build_opener, HTTPCookieProcessor, HTTPRedirectHandler
+from urllib.parse import urlsplit
 from urllib.error import HTTPError
 from http.cookiejar import CookieJar
 
@@ -23,18 +25,31 @@ class SyncError(Exception):
 
 class RemoteAPI:
     def __init__(self,base_url):
-        if not base_url.startswith('https://'):
-            raise ValueError('HTTPS obligatoire.')
-        self.base=base_url.rstrip('/')+'/api/';self.csrf='';self.user=None
-        self.opener=build_opener(HTTPCookieProcessor(CookieJar()))
+        parsed=urlsplit(base_url)
+        if parsed.scheme!='https' or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment or parsed.path not in ('','/'):
+            raise ValueError('Origine HTTPS simple obligatoire.')
+        self.origin=base_url.rstrip('/');self.base=self.origin+'/api/';self.csrf='';self.user=None
+        class NoRedirect(HTTPRedirectHandler):
+            def redirect_request(self,*args,**kwargs):return None
+        self.opener=build_opener(HTTPCookieProcessor(CookieJar()),NoRedirect())
 
     def request(self,path,payload=None):
-        req=Request(self.base+path,data=None if payload is None else json.dumps(payload).encode(),headers={'Content-Type':'application/json','X-CSRF-Token':self.csrf},method='GET' if payload is None else 'POST')
+        if path.startswith('/') or '..' in path or urlsplit(path).scheme or urlsplit(path).netloc:
+            raise ValueError('Route API relative invalide.')
+        req=Request(self.base+path,data=None if payload is None else json.dumps(payload).encode(),headers={'Content-Type':'application/json','X-CSRF-Token':self.csrf,'Origin':self.origin},method='GET' if payload is None else 'POST')
         try:
             with self.opener.open(req,timeout=30) as response:
-                return json.load(response)
+                raw=response.read(8*1024*1024+1)
+                if len(raw)>8*1024*1024:raise SyncError('Réponse trop volumineuse ; aucune confirmation locale.')
+                data=json.loads(raw)
+                if not isinstance(data,dict):raise SyncError('Réponse API invalide.')
+                return data
         except HTTPError as error:
-            data=json.load(error)
+            # Ne jamais reprendre un corps HTML/proxy ou une valeur de secret.
+            if 300<=error.code<400:raise SyncError('Redirection refusée ; vérifier le service de test.',error.code) from None
+            try:data=json.loads(error.read(64*1024))
+            except (ValueError,OSError):data={}
+            if not isinstance(data,dict):data={}
             raise SyncError(data.get('error','Requête refusée'),error.code,data) from None
 
     def login(self,username,password):
@@ -43,18 +58,22 @@ class RemoteAPI:
 
 
 class HerdSync:
-    def __init__(self,connect,transport,user):
+    def __init__(self,connect,transport,user,validator=None):
         self.connect=connect;self.transport=transport;self.user=user;self.lock=threading.RLock();self.running=False;self.error=''
+        self.sync_lock=threading.Lock()
+        self.validator=validator
 
     @contextmanager
     def transaction(self):
-        db=self.connect()
-        try:
-            db.execute('BEGIN IMMEDIATE');yield db;db.commit()
-        except BaseException:
-            db.rollback();raise
-        finally:
-            db.close()
+        resource=self.connect()
+        # La fabrique hôte Windows est déjà un gestionnaire de connexion.
+        # L'adaptateur autonome Work peut aussi fournir une connexion brute.
+        manager=closing(resource) if hasattr(resource,'execute') else resource
+        with manager as db:
+            try:
+                db.execute('BEGIN IMMEDIATE');yield db;db.commit()
+            except BaseException:
+                db.rollback();raise
 
     def initialize_development(self):
         with self.transaction() as db:
@@ -97,6 +116,9 @@ class HerdSync:
                 if revision!=current_revision:
                     raise ValueError('Cette fiche a été actualisée depuis son ouverture. Recharger et comparer avant d’enregistrer.')
                 clean={k:v for k,v in data.items() if k not in ('_localRevision','_sync','revision','author','changedAt','deviceId')}
+                if self.validator:
+                    self.validator(db,kind,clean,previous or None)
+                    data={**data,**clean}
                 device=db.execute("SELECT value FROM tb_mobile_meta WHERE key='device'").fetchone()[0]
                 operations.append({'opId':'op_'+uuid.uuid4().hex,'deviceId':device,'kind':kind,'baseRevision':revision,'data':clean})
                 local={**data,'_localRevision':revision+1,'_sync':'pending'}
@@ -107,7 +129,8 @@ class HerdSync:
         return batch
 
     def sync(self):
-        with self.lock:
+        # Le verrou réseau ne doit jamais bloquer la saisie locale Tkinter.
+        with self.sync_lock:
             self.running=True;self.error=''
             try:
                 session=self.transport.request('session')
@@ -124,6 +147,11 @@ class HerdSync:
                     received={(r.get('opId'),r.get('kind'),r.get('id')) for r in receipts}
                     if received!=expected or len(receipts)!=len(batch['operations']):
                         raise ValueError('Accusés incomplets : lot conservé dans la file locale.')
+                    operations={o['opId']:o for o in batch['operations']}
+                    for receipt in receipts:
+                        operation=operations[receipt['opId']];data=receipt.get('data')
+                        if not isinstance(data,dict) or data.get('id')!=receipt['id'] or type(data.get('revision')) is not int or data['revision']!=operation['baseRevision']+1 or receipt.get('revision')!=data['revision']:
+                            raise ValueError('Accusé incohérent : lot conservé dans la file locale.')
                     # Receipts and queue removal commit together, after the server confirmed.
                     with self.transaction() as db:
                         later=[json.loads(r[0]) for r in db.execute('SELECT payload FROM tb_mobile_outbox WHERE id<>?',(batch['id'],))]
@@ -145,6 +173,17 @@ class HerdSync:
             row=db.execute("SELECT value FROM tb_mobile_meta WHERE key='cursor'").fetchone();cursor=int(row[0]) if row else 0
         while True:
             result=self.transport.request('changes?after='+str(cursor))
+            changes=result.get('changes');next_cursor=result.get('cursor');more=result.get('hasMore')
+            if not isinstance(changes,list) or type(next_cursor) is not int or type(more) is not bool:
+                raise ValueError('Page distante invalide ; curseur conservé.')
+            previous_seq=cursor
+            for change in changes:
+                seq=change.get('seq');data=change.get('data')
+                if type(seq) is not int or seq<=previous_seq or not isinstance(data,dict) or not isinstance(data.get('id'),str) or type(data.get('revision')) is not int or data['revision']<1:
+                    raise ValueError('Page distante incohérente ; curseur conservé.')
+                previous_seq=seq
+            if next_cursor!=previous_seq or (more and not changes):
+                raise ValueError('Curseur distant incohérent ; page conservée pour réessai.')
             with self.transaction() as db:
                 batches=[json.loads(r[0]) for r in db.execute('SELECT payload FROM tb_mobile_outbox')]
                 pending={(o['kind'],o['data']['id']) for batch in batches for o in batch}
@@ -163,7 +202,7 @@ class HerdSync:
 
     def keep_remote(self,batch_id):
         """Explicit human choice after comparing the conflict; archive abandoned groups."""
-        with self.lock:
+        with self.sync_lock:
             batches=self.pending();target=next((b for b in batches if b['id']==batch_id),None)
             if not target or not target['blocked']:raise ValueError('Conflit introuvable.')
             keys={(o['kind'],o['data']['id']) for o in target['operations']};removed=[]
