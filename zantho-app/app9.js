@@ -10,6 +10,59 @@ function familyLabel(p){
 }
 function familyColor(p){ return SPECIES[p.species]?.color||'#789'; }
 function codeNumber(p){ return String(p.code||p.id).split('-').pop(); }
+function normalizePlantSearch(value){
+  return String(value||'')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase()
+    .replace(/[’‘`´]/g,"'")
+    .replace(/[^a-z0-9]+/g,' ')
+    .trim()
+    .replace(/\s+/g,' ');
+}
+function boundedEditDistance(a,b,max){
+  if(Math.abs(a.length-b.length)>max) return max+1;
+  const prev=Array.from({length:b.length+1},(_,i)=>i);
+  for(let i=1;i<=a.length;i++){
+    let rowMin=i;
+    const cur=[i];
+    for(let j=1;j<=b.length;j++){
+      cur[j]=Math.min(
+        cur[j-1]+1,
+        prev[j]+1,
+        prev[j-1]+(a[i-1]===b[j-1]?0:1)
+      );
+      rowMin=Math.min(rowMin,cur[j]);
+    }
+    if(rowMin>max) return max+1;
+    for(let j=0;j<cur.length;j++) prev[j]=cur[j];
+  }
+  return prev[b.length];
+}
+function fuzzySearchToken(queryToken,targetToken){
+  if(!queryToken||!targetToken) return false;
+  if(targetToken.includes(queryToken)||queryToken.includes(targetToken)) return true;
+  if(queryToken.length<3) return false;
+  const threshold=queryToken.length>=7?2:1;
+  const minLen=Math.max(1,queryToken.length-threshold);
+  const maxLen=Math.min(targetToken.length,queryToken.length+threshold);
+  for(let len=minLen;len<=maxLen;len++){
+    if(boundedEditDistance(queryToken,targetToken.slice(0,len),threshold)<=threshold) return true;
+  }
+  return false;
+}
+function plantMatchesSearch(p,rawQuery){
+  const q=normalizePlantSearch(rawQuery);
+  if(!q) return true;
+  const searchable=normalizePlantSearch([
+    p.code,p.id,p.nickname,p.nicknameUniverse,
+    familyLabel(p),SPECIES[p.species]?.name,SPECIES[p.species]?.latin,
+    'ligne '+p.line,'position '+p.position
+  ].filter(Boolean).join(' '));
+  if(searchable.includes(q)) return true;
+  const targetTokens=searchable.split(' ').filter(Boolean);
+  return q.split(' ').filter(Boolean).every(qt=>targetTokens.some(tt=>fuzzySearchToken(qt,tt)));
+}
 
 function renderPlan(){
   const ordered=state.plants.slice().sort((a,b)=>a.line-b.line||a.position-b.position);
@@ -25,7 +78,7 @@ function renderPlan(){
       <button class="btn small secondary" id="planTour">Tournée</button>
     </div>
 
-    <input class="search" id="plantSearch" placeholder="Rechercher L2-SIC-04, Timut, coréen…">
+    <input class="search" id="plantSearch" placeholder="Rechercher code, surnom, espèce… ex. myso">
 
     <div class="field-plan">
       ${lines.map(arr=>{
@@ -50,7 +103,7 @@ function renderPlan(){
                     type="button"
                     class="field-plant ${statusTone(plantStatus(p))}"
                     data-plant="${p.id}"
-                    data-search="${esc((p.code+' '+(p.nickname||'')+' '+familyLabel(p)+' '+SPECIES[p.species].latin+' '+(p.nicknameUniverse||'')).toLowerCase())}"
+                    data-search="${esc(p.code||p.id)}"
                     style="--plant:${familyColor(p)}"
                     aria-label="${esc(p.code+' '+(p.nickname||'')+' '+familyLabel(p))}">
                     <span class="plant-number">${codeNumber(p)}</span>
@@ -73,9 +126,10 @@ function renderPlan(){
   document.querySelector('#planTour').onclick=()=>openTour();
   document.querySelectorAll('[data-plant]').forEach(b=>b.onclick=()=>openPlant(b.dataset.plant));
   document.querySelector('#plantSearch').oninput=e=>{
-    const q=e.target.value.toLowerCase().trim();
+    const q=e.target.value;
     document.querySelectorAll('[data-plant]').forEach(b=>{
-      b.classList.toggle('plan-hidden',!!q && !b.dataset.search.includes(q));
+      const p=state.plants.find(x=>x.id===b.dataset.plant);
+      b.classList.toggle('plan-hidden',!p || !plantMatchesSearch(p,q));
     });
     document.querySelectorAll('.field-group').forEach(g=>{
       g.classList.toggle('plan-hidden',![...g.querySelectorAll('[data-plant]')].some(b=>!b.classList.contains('plan-hidden')));
@@ -206,7 +260,7 @@ function openPlant(id){
   loadPlantPhotos(id,m.querySelector('#plantPhotos'));
 }
 
-state.version='0.6.1';
+state.version='0.6.2';
 save();
 currentView='plan';
 if(typeof syncNav==='function') syncNav();
