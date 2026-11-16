@@ -452,3 +452,23 @@ openTastingDetail=function(id){
   };
 };
 
+const zSyncPhotosV064=zSyncPhotos;
+zSyncPhotos=async function(token,notify){
+  state.deleted=zDeletedShape(state.deleted);
+  for(const tomb of state.deleted.photoRefs||[]){
+    if(!tomb.drivePath) continue;
+    try{
+      const r=await fetch(zGraphUrl(tomb.drivePath),{
+        method:'DELETE',
+        headers:{Authorization:`Bearer ${token}`}
+      });
+      if(!r.ok && r.status!==404) console.warn('Suppression photo OneDrive',r.status,tomb.drivePath);
+    }catch(err){
+      console.warn('Suppression photo OneDrive',err);
+    }
+  }
+  return zSyncPhotosV064(token,notify);
+};
+
+state.version='0.6.4';
+save();
