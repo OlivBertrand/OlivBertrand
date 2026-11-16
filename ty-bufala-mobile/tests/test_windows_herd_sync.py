@@ -82,3 +82,16 @@ def test_two_queued_offline_edits_keep_revision_order(app,tmp_path):
     assert remote['notes']=='second' and remote['revision']==3 and '_localRevision' not in remote
     client.save([{'kind':'animals','data':{**client.records('animals')[0],'notes':'third'}}]);client.sync()
     assert not client.error and mobile.get('/api/record/animals/animal_a').json['data']['revision']==4
+
+
+def test_open_editor_cannot_borrow_a_newer_pulled_revision(app,tmp_path):
+    import pytest
+    mobile,mh=login(app);wc,wh=login(app,'suzanna');push(mobile,mh,[op(animal())])
+    client=HerdSync(lambda:sqlite3.connect(tmp_path/'dev.db'),Transport(wc,wh),{'id':'suzanna','role':'editor'});client.initialize_development();client.sync()
+    opened=client.records('animals')[0]
+    assert push(mobile,mh,[op({**opened,'notes':'Correction téléphone'},1,'phone')]).status_code==200
+    client.sync()
+    with pytest.raises(ValueError,match='actualisée'):
+        client.save([{'kind':'animals','data':{**opened,'notes':'Ancien éditeur'}}])
+    assert not client.pending()
+    assert client.records('animals')[0]['notes']=='Correction téléphone'

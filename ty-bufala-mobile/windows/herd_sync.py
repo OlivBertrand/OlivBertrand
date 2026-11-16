@@ -91,7 +91,11 @@ class HerdSync:
                 kind=record['kind'];data=dict(record['data'])
                 if kind not in KINDS:raise ValueError('Type inconnu.')
                 old=db.execute('SELECT data FROM tb_mobile_records WHERE kind=? AND id=?',(kind,data['id'])).fetchone()
-                previous=json.loads(old[0]) if old else {};revision=previous.get('_localRevision',previous.get('revision',0))
+                previous=json.loads(old[0]) if old else {}
+                revision=data.get('_localRevision',data.get('revision',0))
+                current_revision=previous.get('_localRevision',previous.get('revision',0))
+                if revision!=current_revision:
+                    raise ValueError('Cette fiche a été actualisée depuis son ouverture. Recharger et comparer avant d’enregistrer.')
                 clean={k:v for k,v in data.items() if k not in ('_localRevision','_sync','revision','author','changedAt','deviceId')}
                 device=db.execute("SELECT value FROM tb_mobile_meta WHERE key='device'").fetchone()[0]
                 operations.append({'opId':'op_'+uuid.uuid4().hex,'deviceId':device,'kind':kind,'baseRevision':revision,'data':clean})
