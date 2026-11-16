@@ -4,7 +4,7 @@ PWA Android/ordinateur avec API authentifiée et base commune. Cette branche ne 
 
 ## Tableau de bord du cheptel (branche complémentaire)
 
-Sur la page d’accueil : **total présent** et effectifs exclusifs par catégorie (en lactation, taries, génisses confirmées, jeunes femelles de moins de 12 mois, jeunes mâles de moins de 24 mois, taureaux reproducteurs confirmés, autres mâles adultes, femelles à préciser, autres à préciser). Chaque carte mène au filtre correspondant.
+Sur la page d’accueil : **total présent** et effectifs exclusifs par catégorie (en lactation, taries, génisses confirmées, jeunes femelles de moins de 12 mois, jeunes mâles de moins de 24 mois, taureaux reproducteurs confirmés, autres mâles adultes, bufflonnes ayant déjà vêlé mais à classer, femelles à préciser, autres à préciser). Chaque carte mène au filtre correspondant.
 
 Les champs synchronisés `productionStatus`, `reproductiveStatus`, `maleRole`, `productionStatusDate` sont saisis dans la fiche. Le serveur valide les combinaisons. Les événements **Tarissement** et **Mise en lactation** peuvent, après confirmation, actualiser le statut courant dans le même lot atomique que l’événement. Les prévisions de vêlage et le potentiel laitier Excel ne sont jamais interprétés comme une lactation réelle.
 

@@ -13,21 +13,22 @@ test('one animal -> one exclusive category; exits excluded',()=>{
   animal('bull','M','2020-02-02',{maleRole:'breeding_bull'}),
   animal('other-m','M','2020-02-02'),
   animal('uncertain-f','F','2020-02-02',{lastCalving:'2024-01-02'}),
+  animal('unknown-f','F','2020-02-02'),
   animal('unknown','',''),
   animal('exited','F','2020-01-01',{status:'sorti',productionStatus:'lactating'}),
  ];
  const s=H.summarize(arr,today);
- assert.equal(s.total,9);
+ assert.equal(s.total,10);
  assert.deepEqual(Object.fromEntries(Object.entries(s.counts)),{
-  lactating:1,dry:1,heifers:1,youngFemales:1,youngMales:1,breedingBulls:1,adultMales:1,femaleUnknown:1,unknown:1
+  lactating:1,dry:1,heifers:1,youngFemales:1,youngMales:1,breedingBulls:1,adultMales:1,calvedUnknown:1,femaleUnknown:1,unknown:1
  });
- assert.equal(s.unclassified,3);
+ assert.equal(s.unclassified,4);
  assert.equal(Object.values(s.counts).reduce((a,b)=>a+b,0),s.total);
  assert.deepEqual(s.members.dry,['cow-dry']);
 });
 test('no classification from estimated calving date or lactation potential',()=>{
  const a=animal('x','F','2020-01-01',{expectedCalving:'2026-12-01',lactationPotentialRaw:'oui',lastCalving:'2025-01-01'});
- assert.equal(H.classify(a,today),'femaleUnknown');
+ assert.equal(H.classify(a,today),'calvedUnknown');
  assert.equal(H.classify({...a,productionStatus:'dry'},today),'dry');
 });
 test('strict birth anniversary including 12 and 24 months',()=>{
@@ -41,7 +42,7 @@ test('strict birth anniversary including 12 and 24 months',()=>{
 });
 test('heifer with known last calving is never silently labelled heifer',()=>{
  const a=animal('f','F','2022-01-01',{reproductiveStatus:'heifer',lastCalving:'2025-01-01'});
- assert.equal(H.classify(a,today),'femaleUnknown');
+ assert.equal(H.classify(a,today),'calvedUnknown');
  assert.match(H.validateAnimalCategory(a,today),/génisse/);
 });
 test('validation rejects inconsistent sex, lactation and tampered values',()=>{

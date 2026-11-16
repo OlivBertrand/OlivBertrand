@@ -13,6 +13,7 @@
     {id:'youngMales', label:'Jeunes mâles', hint:'Moins de 24 mois'},
     {id:'breedingBulls', label:'Taureaux', hint:'Reproducteurs confirmés'},
     {id:'adultMales', label:'Autres mâles adultes', hint:'Non classés reproducteurs'},
+    {id:'calvedUnknown', label:'Bufflonnes à classer', hint:'Vêlage connu ; lactation à confirmer'},
     {id:'femaleUnknown', label:'Femelles à préciser', hint:'Statut de lactation / reproduction inconnu'},
     {id:'unknown', label:'Autres à préciser', hint:'Sexe ou âge manquant'},
   ]);
@@ -37,6 +38,7 @@
       if (animal.productionStatus==='lactating') return 'lactating';
       if (animal.productionStatus==='dry') return 'dry';
       if (animal.reproductiveStatus==='heifer' && !animal.lastCalving) return 'heifers';
+      if (animal.lastCalving || animal.reproductiveStatus==='calved') return 'calvedUnknown';
       return 'femaleUnknown';
     }
     if (animal.sex==='M') {
@@ -57,7 +59,7 @@
       counts[group]++;
       members[group].push(animal.id);
     }
-    return {total,counts,members,unclassified:counts.femaleUnknown+counts.adultMales+counts.unknown};
+    return {total,counts,members,unclassified:counts.calvedUnknown+counts.femaleUnknown+counts.adultMales+counts.unknown};
   }
   function validateAnimalCategory(a, today) {
     if (!a || typeof a!=='object') return 'Fiche animal invalide.';

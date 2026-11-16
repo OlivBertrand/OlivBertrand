@@ -4,7 +4,7 @@
 Afficher dès l'accueil les effectifs du cheptel **présent**, avec des catégories exclusives et filtrables, puis maintenir l'aperçu en accord avec le cache local synchronisé, sans faire passer un calcul estimatif pour un état reproductif confirmé.
 
 ## Fonctionnement
-- 9 catégories exclusives : en lactation, taries, génisses confirmées, jeunes femelles de moins de 12 mois, jeunes mâles de moins de 24 mois, taureaux reproducteurs confirmés, autres mâles adultes, femelles à préciser, autres à préciser.
+- 10 catégories exclusives : en lactation, taries, génisses confirmées, jeunes femelles de moins de 12 mois, jeunes mâles de moins de 24 mois, taureaux reproducteurs confirmés, autres mâles adultes, bufflonnes ayant vêlé mais lactation à préciser, femelles à préciser, autres à préciser.
 - La somme des catégories doit être égale à l'effectif de fiches `status=present` ; les animaux sortis/archivés sont exclus.
 - Les déductions par date de naissance ne sont utilisées que pour l'âge, jamais pour affirmer tarissement ou lactation.
 - Les fiches affichent et permettent de modifier `productionStatus` (`lactating`, `dry` ou vide), `reproductiveStatus` (`heifer`, `calved` ou vide), `maleRole` (`breeding_bull`, `other` ou vide), `productionStatusDate`.
