@@ -260,7 +260,7 @@ function openPlant(id){
   loadPlantPhotos(id,m.querySelector('#plantPhotos'));
 }
 
-state.version='0.6.2';
+state.version='0.6.3';
 save();
 currentView='plan';
 if(typeof syncNav==='function') syncNav();
