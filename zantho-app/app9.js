@@ -50,9 +50,9 @@ function renderPlan(){
                     type="button"
                     class="field-plant ${statusTone(plantStatus(p))}"
                     data-plant="${p.id}"
-                    data-search="${esc((p.code+' '+familyLabel(p)+' '+SPECIES[p.species].latin).toLowerCase())}"
+                    data-search="${esc((p.code+' '+(p.nickname||'')+' '+familyLabel(p)+' '+SPECIES[p.species].latin+' '+(p.nicknameUniverse||'')).toLowerCase())}"
                     style="--plant:${familyColor(p)}"
-                    aria-label="${esc(p.code+' '+familyLabel(p))}">
+                    aria-label="${esc(p.code+' '+(p.nickname||'')+' '+familyLabel(p))}">
                     <span class="plant-number">${codeNumber(p)}</span>
                     <span class="plant-dot"></span>
                   </button>`).join('')}
@@ -86,7 +86,7 @@ function renderPlan(){
 function openAddPlantInfo(id,parent){
   const p=state.plants.find(x=>x.id===id); if(!p)return;
   const m=openModal(`
-    <div class="eyebrow">${esc(p.code)} · ${esc(familyLabel(p))}</div>
+    <div class="eyebrow">${esc(p.code)} · ${esc(p.nickname||familyLabel(p))}</div>
     <h2>Ajouter une information</h2>
     <form id="quickNoteForm" class="stack">
       <div class="field">
@@ -149,9 +149,10 @@ function openPlant(id){
   const m=openModal(`<div class="plant-sheet plant-sheet-v6">
     <div class="plant-sheet-head">
       <div>
-        <div class="eyebrow">Ligne ${p.line} · emplacement ${p.id}</div>
-        <h2>${esc(p.code||p.id)}</h2>
+        <div class="eyebrow">Ligne ${p.line} · ${esc(p.code||p.id)}</div>
+        <h2>${esc(p.nickname||p.code||p.id)}</h2>
         <div class="plant-species">${esc(familyLabel(p))}</div>
+        ${p.nicknameUniverse?`<div class="small-note">${esc(p.nicknameUniverse)}</div>`:''}
         <div class="muted"><em>${esc(SPECIES[p.species].latin)}</em>${p.species==='tas_f'?' · femelle':p.species==='tas_m'?' · mâle':''}</div>
       </div>
       <span class="status-dot ${statusTone(plantStatus(p))}">${esc(plantStatus(p))}</span>
@@ -205,7 +206,7 @@ function openPlant(id){
   loadPlantPhotos(id,m.querySelector('#plantPhotos'));
 }
 
-state.version='0.6.0';
+state.version='0.6.1';
 save();
 currentView='plan';
 if(typeof syncNav==='function') syncNav();
