@@ -61,6 +61,11 @@ test('DOM: login, automatic herd, controls, veterinary event and exact sale',asy
  assert.match(w.document.body.textContent,/FR0000000099/);
  w.document.querySelector('#goMother').click();
  assert.match(w.document.querySelector('h1').textContent,/Animal de test/,'calf links to exact mother, not other female');
+ const calvingTile=[...w.document.querySelectorAll('[data-event]')].find(e=>e.querySelector('.event-name')?.textContent==='Vêlage');assert.ok(calvingTile);calvingTile.click();
+ w.document.querySelector('#cancelEvent').click();await wait(()=>!w.document.querySelector('#editorForm'),'calving cancellation');
+ assert.ok([...w.document.querySelectorAll('[data-child]')].some(e=>e.textContent.includes('FR0000000099')),'calf remains after cancelling calving');
+ assert.ok(![...w.document.querySelectorAll('.animal-meta span')].some(e=>e.textContent==='Dernier vêlage'),'maternal last calving cleared after explicit confirmation');
+
  for(const [type,category] of [['Tarissement','dry'],['Mise en lactation','lactating']]){
   w.document.querySelector(`[data-quick-event="${type}"]`).click();form=w.document.querySelector('#editorForm');
   assert.equal(form.querySelector('[name="type"]').value,type);

@@ -21,8 +21,8 @@
     const number=tag(animal?.earTag),birth=animal?.birthDate||'',mother=tag(animal?.motherTag),father=tag(animal?.fatherTag);
     if(!number)add(errors,'ear_tag_required','Le numéro de boucle est obligatoire.');
     if(number&&animals.some(a=>a.id!==animal?.id&&tag(a.earTag)===number))add(errors,'duplicate_tag','Ce numéro de boucle existe déjà.');
-    if(number&&mother===number)add(errors,'self_mother','Un animal ne peut pas être sa propre mère.');
-    if(number&&father===number)add(errors,'self_father','Un animal ne peut pas être son propre père.');
+    if(animal?.motherId===animal?.id||number&&mother===number)add(errors,'self_mother','Un animal ne peut pas être sa propre mère.');
+    if(animal?.fatherId===animal?.id||number&&father===number)add(errors,'self_father','Un animal ne peut pas être son propre père.');
     if(birth&&!isDate(birth))add(errors,'birth_invalid','Date de naissance invalide.');
     if(isDate(birth)&&isDate(today)&&birth>today)add(errors,'birth_future','La naissance ne peut pas être dans le futur.');
     for(const key of ['lastCalving','expectedCalving','matingDate','exitDate','weaningDate']){
@@ -30,7 +30,7 @@
     }
     if(isDate(birth)&&isDate(animal?.lastCalving)&&animal.lastCalving<birth)add(errors,'calving_before_birth','Vêlage avant la naissance de la mère.');
     if(isDate(birth)&&isDate(animal?.exitDate)&&animal.exitDate<birth)add(errors,'exit_before_birth','Sortie avant la naissance.');
-    const dam=mother&&animals.find(a=>tag(a.earTag)===mother);
+    const dam=animal?.motherId?animals.find(a=>a.id===animal.motherId):mother&&animals.find(a=>tag(a.earTag)===mother);
     if(dam){
       if(dam.sex==='M')add(errors,'male_mother','La mère renseignée est identifiée comme mâle.');
       if(isDate(dam.birthDate)&&isDate(birth)&&dam.birthDate>=birth)add(errors,'mother_born_later','La mère ne peut pas être née le même jour ou après son petit.');
@@ -52,7 +52,8 @@
   function check(data,today){
     const animals=data.animals||[],events=data.events||[],sales=data.sales||[],issues=[];
     const add=(code,severity,title,animalId='',detail='',date='')=>issues.push({code,severity,title,animalId,detail,date});
-    const byTag=new Map(),byId=new Set();
+    const byTag=new Map(),byId=new Set(),recordsById=new Map(animals.map(a=>[a.id,a]));
+    const parentOf=(a,role)=>a[role+'Id']?recordsById.get(a[role+'Id']):byTag.get(tag(a[role+'Tag']));
     for(const animal of animals){
       const number=tag(animal.earTag);
       if(byId.has(animal.id))add('duplicate_animal_id','error','Identifiant interne répété',animal.id);
@@ -65,18 +66,18 @@
       if(!number)add('missing_tag','error','Numéro de boucle absent',a.id);
       if(a.birthDate&&!isDate(a.birthDate))add('invalid_birth','error','Date de naissance incorrecte',a.id,a.birthDate);
       if(isDate(today)&&isDate(a.birthDate)&&a.birthDate>today)add('future_birth','error','Naissance dans le futur',a.id,a.birthDate);
-      if(number&&mother===number)add('self_mother','error','Auto-filiation maternelle',a.id);
-      if(number&&tag(a.fatherTag)===number)add('self_father','error','Auto-filiation paternelle',a.id);
-      if(mother){
-        const m=byTag.get(mother);
+      if(a.motherId===a.id||number&&mother===number)add('self_mother','error','Auto-filiation maternelle',a.id);
+      if(a.fatherId===a.id||number&&tag(a.fatherTag)===number)add('self_father','error','Auto-filiation paternelle',a.id);
+      if(mother||a.motherId){
+        const m=parentOf(a,'mother');
         if(!m)add('external_mother','info','Mère non enregistrée dans l’inventaire',a.id,mother);
         else if(m.sex==='M')add('male_mother','error','Mère répertoriée comme mâle',a.id,mother);
         else if(isDate(a.birthDate)&&isDate(m.birthDate)&&m.birthDate>=a.birthDate)add('mother_timeline','error','Chronologie mère/petit impossible',a.id,mother);
       }
       if(!a.birthDate)add('missing_birth','warning','Date de naissance manquante',a.id);
       if(!a.sex)add('missing_sex','warning','Sexe non renseigné',a.id);
-      const seen=new Set(),pending=[tag(a.motherTag),tag(a.fatherTag)].filter(Boolean);
-      while(pending.length){const key=pending.pop();if(key===number){add('parent_cycle','error','Cycle de filiation',a.id);break;}if(seen.has(key))continue;seen.add(key);const parent=byTag.get(key);if(parent)pending.push(...[tag(parent.motherTag),tag(parent.fatherTag)].filter(Boolean));}
+      const seen=new Set(),pending=[parentOf(a,'mother'),parentOf(a,'father')].filter(Boolean);
+      while(pending.length){const parent=pending.pop();if(parent.id===a.id){add('parent_cycle','error','Cycle de filiation',a.id);break;}if(seen.has(parent.id))continue;seen.add(parent.id);pending.push(...[parentOf(parent,'mother'),parentOf(parent,'father')].filter(Boolean));}
       if(a.status==='sorti'&&!a.exitDate)add('missing_exit','warning','Date de sortie manquante',a.id);
       if(a.status!=='sorti'&&a.exitDate)add('exit_disagreement','warning','Date de sortie mais statut présent',a.id);
       if(isDate(a.exitDate)&&isDate(a.birthDate)&&a.exitDate<a.birthDate)add('early_exit','error','Sortie avant naissance',a.id);

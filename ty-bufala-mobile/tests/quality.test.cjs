@@ -65,3 +65,9 @@ test('filiation stable après correction des boucles, sans rattachement par anci
  assert.deepEqual(Q.descendants([mother,calf,grandchild,other],'a').map(x=>x.animal.id),['b','c']);
  assert.deepEqual(Q.descendants([mother,calf,grandchild,other],'other'),[]);
 });
+
+test('contrôles de parenté suivent les IDs corrigés et détectent les cycles stables',()=>{
+ const mother={...A,earTag:'FR999'},child={...B,motherId:'a',motherTag:'FR001'};
+ assert.ok(!Q.check({animals:[mother,child]},today).issues.some(x=>x.code==='external_mother'));
+ assert.ok(Q.check({animals:[{...mother,motherId:'b'},child]},today).issues.some(x=>x.code==='parent_cycle'));
+});

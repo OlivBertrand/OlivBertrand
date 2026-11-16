@@ -17,6 +17,9 @@ def test_collective_labels_are_separate_idempotent_and_transactional(app,tmp_pat
     assert push(c,h,[op({'id':'label','name':'Échographies à faire'},1,'rename',kind='labelDefinitions')]).status_code==200
     changes=c.get('/api/changes').json['changes'];assert len([x for x in changes if x['kind']=='animals'])==8
     assert len([x for x in changes if x['kind']=='animalLabelAssignments'])==9
+    backup=snapshot(app.config['STORE']);restored=Store(str(tmp_path/'restored.db'));restored.initialize();restore_empty(restored,backup)
+    restored_backup=snapshot(restored)
+    for key in ('records','history','imports','operations','identities'):assert backup[key]==restored_backup[key]
     completed={**batch[0]['data'],'completedAt':'2026-11-16T12:00:00Z'}
     assert push(c,h,[op(completed,1,'complete',kind='animalLabelAssignments')]).status_code==200
     assert push(c,h,[op({**batch[0]['data'],'id':'reassigned'},id='reassign',kind='animalLabelAssignments')]).status_code==200

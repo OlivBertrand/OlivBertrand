@@ -75,3 +75,10 @@ test('offline label assignments survive client restart and replay across two use
  assert.equal((await b.all('animalLabelAssignments')).filter(x=>x.id==='offline_assignment').length,1);
  await restarted.run();assert.equal((await restarted.all('outbox')).length,0);
 });
+
+test('incomplete receipts never remove an offline batch',async()=>{
+ const a=await device('alice');online=false;
+ const record=(await a.all('animals'))[0];await a.save([{kind:'animals',data:{...record,notes:'receipt guard'}}]);
+ const batch=(await a.all('outbox'))[0];await assert.rejects(a.accept(batch,[]),/Accusés incomplets/);
+ assert.equal((await a.all('outbox')).length,1);online=true;await a.run();assert.equal((await a.all('outbox')).length,0);
+});

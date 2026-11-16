@@ -27,3 +27,15 @@ Essais : 87 tests Python, 18 tests JS de domaine, 4 scénarios HTTP/IndexedDB/DO
 Lot D en développement indépendant. L'intégration dans la version Windows actuelle nécessite son code source exact et une copie cohérente de sa base. Les ressources trouvées jusqu'ici incluent des éléments plus anciens ; elles ne prouvent pas l'accès à la version courante.
 
 Références Windows retrouvées dans les échanges récents : V70.4, révision `0e788d4a1a915db25c585007d0717bb0cd64b653`, et paquet connecteur `TY_BUFALA_BLEEZ_V705_FENETRE_WINDOWS_CORRIGEE.zip`. Ce SHA n’existe pas dans le dépôt GitHub mobile accessible. Le paquet V70.5 est récupéré pour inspection ; ne pas confondre ce connecteur avec le logiciel Windows complet.
+
+## Lot D indépendant et limites de recette
+
+Client Python `windows/herd_sync.py` livré pour la fabrique de connexions SQLite de l’hôte courant, avec tables additives préfixées, file/reçus/curseur persistants, synchronisation bidirectionnelle, conflits et étiquettes collectives. Aucun onglet Windows installé ni intégration au véritable app.py actuel n’est revendiqué. Voir `windows/HERD_INTEGRATION_HANDOFF.md`.
+
+Essais supplémentaires : huit affectations Windows/API, correction de diagnostic, annulation, reprise de client, réponse perdue, conflit, conservation des tables métier et ordre de deux corrections hors ligne. Le statut synchronisé est interdit avant première confirmation ; des reçus incomplets ne retirent jamais le lot local.
+
+Recette visuelle bloquée : Chromium local refuse son lancement avec `socket() failed: Operation not permitted`. Aucune restriction contournée ; DOM/IndexedDB n’est pas une validation Android réelle.
+
+Toujours bloqués : intégration de l’onglet au HEAD Windows réellement présent dans DEV-isole, tests natifs sur copie fictive courante, récupération PEM officiellement prise en charge, persistance et restauration OneDrive/Render réelles. Aucun coût d’hébergement supplémentaire, import partagé réel ou modification de production.
+
+Validation finale de ce lot : **91 tests Python, 19 tests JS de domaine, 5 scénarios HTTP/IndexedDB/DOM**, tous réussis. Inclut annulation de vêlage conservant le veau, absence de faux statut synchronisé initial, rejet des reçus incomplets et révisions successives hors ligne. Syntaxe JS et `git diff --check` réussis.

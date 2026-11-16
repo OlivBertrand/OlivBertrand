@@ -245,7 +245,7 @@ def apply_operations(store, actor, operations, initial_import=None):
                 raise
             changed_at = utcnow()
             revision += 1
-            for key in ('revision', 'author', 'deviceId', 'changedAt', '_sync'):
+            for key in ('revision', 'author', 'deviceId', 'changedAt', '_sync', '_localRevision'):
                 data.pop(key, None)
             data['updatedAt'] = changed_at
             if not old:
