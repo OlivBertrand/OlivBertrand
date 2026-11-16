@@ -4,3 +4,7 @@
 @media(min-width:700px){main{padding:26px}.stats{grid-template-columns:repeat(3,1fr)}.modal-backdrop{align-items:center}.modal{border-radius:22px;max-height:90dvh}.bottom-nav{width:540px;left:50%;transform:translateX(-50%);bottom:12px;border:1px solid var(--line);border-radius:18px;box-shadow:0 6px 25px #0001}.tile-grid{grid-template-columns:repeat(2,1fr)}}
 
 .brand-logo{width:47px;height:47px;object-fit:contain;flex:none;border-radius:12px;background:#f4f6f1}
+.conflict-data {white-space:pre-wrap;overflow-wrap:anywhere;font-size:.8rem;max-height:20rem;overflow:auto;background:#f2f5f3;padding:12px;border-radius:12px}
+#loginForm {max-width:520px;margin:20px auto}
+#loginError {color:#8e2828}
+[hidden] {display:none !important}

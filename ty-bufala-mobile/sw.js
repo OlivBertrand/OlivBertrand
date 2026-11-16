@@ -1,5 +1,5 @@
-const CACHE = 'ty-bufala-mobile-v2';
-const ASSETS = ['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable-512.png'];
+const CACHE = 'ty-bufala-mobile-v4-shared-quality';
+const ASSETS = ['./','./index.html','./styles.css','./app.js','./sync.js','./quality.js','./enhancements.js','./enhancements.css','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable-512.png'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil((async () => {
   const keys = await caches.keys();
@@ -8,6 +8,9 @@ self.addEventListener('activate', event => event.waitUntil((async () => {
 })()));
 self.addEventListener('fetch', event => {
   if(event.request.method !== 'GET' || new URL(event.request.url).origin !== self.location.origin) return;
+  const path=new URL(event.request.url).pathname;
+  if(path.startsWith('/api/') || path==='/healthz')return;
+  if(!ASSETS.some(a=>new URL(a,self.location.href).pathname===path))return;
   event.respondWith((async () => {
     const cached = await caches.match(event.request);
     if(cached) return cached;

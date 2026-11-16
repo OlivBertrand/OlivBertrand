@@ -1,0 +1,11 @@
+.env
+*.db
+*.db-*
+*.sqlite*
+*.xlsx
+*.zip
+private/
+__pycache__/
+.pytest_cache/
+node_modules/
+playwright-results/

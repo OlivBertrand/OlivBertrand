@@ -10,10 +10,11 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png" type="image/png">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="enhancements.css">
 </head>
 <body>
   <header class="topbar">
-    <div class="brand-lockup"><img class="brand-logo" src="icon-192.png" alt="Logo Ty Bufala"><div><div class="brand">TY BUFALA <span>MOBILE</span></div><div class="subbrand">Cheptel & ventes • Suzanna</div></div></div>
+    <div class="brand-lockup"><img class="brand-logo" src="icon-192.png" alt="Logo Ty Bufala"><div><div class="brand">TY BUFALA <span>MOBILE</span></div><div class="subbrand">Cheptel & ventes</div></div></div>
     <div id="connectionIndicator" class="connection" role="status">Local</div>
   </header>
   <main id="app"><section class="card"><p>Chargement de l’application…</p></section></main>
@@ -21,10 +22,14 @@
     <button data-view="home" class="active"><span aria-hidden="true">⌂</span>Accueil</button>
     <button data-view="herd"><span aria-hidden="true">♧</span>Cheptel</button>
     <button data-view="sales"><span aria-hidden="true">€</span>Ventes</button>
+    <button data-view="quality"><span aria-hidden="true">✓</span>Contrôles</button>
     <button data-view="data"><span aria-hidden="true">⇅</span>Données</button>
   </nav>
   <div id="modalRoot"></div>
   <div id="toast" class="toast" aria-live="polite" hidden></div>
+  <script defer src="sync.js"></script>
   <script defer src="app.js"></script>
+  <script defer src="quality.js"></script>
+  <script defer src="enhancements.js"></script>
 </body>
 </html>
