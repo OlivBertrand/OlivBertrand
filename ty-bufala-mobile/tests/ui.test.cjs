@@ -8,10 +8,10 @@ test('DOM: login, automatic herd, controls, veterinary event and exact sale',asy
  w.fetch=async(url,options={})=>{const response=await fetch(new URL(url,w.location.href),{...options,headers:{...options.headers,Cookie:cookie}});if(response.headers.get('set-cookie'))cookie=response.headers.get('set-cookie').split(';')[0];return response;};
  w.scrollTo=()=>{};w.confirm=()=>true;w.setInterval=()=>1;w.structuredClone=structuredClone;
  const failures=[];w.addEventListener('error',e=>failures.push(e.message));w.addEventListener('unhandledrejection',e=>failures.push(String(e.reason)));
- w.eval(['sync.js','herd-overview.js','reproduction.js','herd-work.js','app.js','quality.js','enhancements.js'].map(f=>fs.readFileSync(path.join(base,f),'utf8')).join('\n'));
+ w.eval(['sync.js','ui-kit.js','herd-overview.js','reproduction.js','herd-work.js','app.js','quality.js','enhancements.js'].map(f=>fs.readFileSync(path.join(base,f),'utf8')).join('\n'));
  await wait(()=>w.document.querySelector('#username'),'login');
  w.document.querySelector('#username').value='alice';w.document.querySelector('#password').value='local-test-only-password';w.document.querySelector('#loginForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
- await wait(()=>w.document.querySelector('#quickAnimal'),'home');await wait(()=>w.document.querySelector('.stat strong')?.textContent==='1','automatic herd');
+ await wait(()=>w.document.querySelector('#quickAnimal'),'home');await wait(()=>w.document.querySelector('.home-count strong')?.textContent==='1','automatic herd');
  assert.equal(w.document.querySelectorAll('.herd-overview-card').length,10,'all exclusive herd groups should be visible');
  assert.equal(w.document.querySelector('[data-herd-category="femaleUnknown"] strong').textContent,'1');
  w.document.querySelector('[data-herd-category="femaleUnknown"]').click();
@@ -76,12 +76,12 @@ test('DOM: login, automatic herd, controls, veterinary event and exact sale',asy
  w.document.querySelector('[data-quick-event="Sortie"]').click();form=w.document.querySelector('#editorForm');form.querySelector('[name="description"]').value='Sortie fictive';
  form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(()=>!w.document.querySelector('#editorForm'),'exit saved');
  assert.ok(w.document.querySelector('[data-quick-event="Entrée"]'));
- w.document.querySelector('[data-view="home"]').click();assert.equal(w.document.querySelector('.stat strong').textContent,'2');
+ w.document.querySelector('[data-view="home"]').click();assert.equal(w.document.querySelector('.home-count strong').textContent,'2');
  w.document.querySelector('[data-view="herd"]').click();
  const categorySelect=w.document.querySelector('#herdCategory');categorySelect.value='';categorySelect.dispatchEvent(new w.Event('change'));
  const calf=[...w.document.querySelectorAll('#herdList [data-id]')].find(b=>b.textContent.includes('FR0000000099'));assert.ok(calf);calf.click();w.document.querySelector('#goMother').click();
  w.document.querySelector('[data-quick-event="Entrée"]').click();form=w.document.querySelector('#editorForm');form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(()=>!w.document.querySelector('#editorForm'),'entry saved');
- w.document.querySelector('[data-view="home"]').click();assert.equal(w.document.querySelector('.stat strong').textContent,'3');
+ w.document.querySelector('[data-view="home"]').click();assert.equal(w.document.querySelector('.home-count strong').textContent,'3');
  w.document.querySelector('[data-view="herd"]').click();
  for(let i=0;i<8;i++){
   w.document.querySelector('#addAnimal').click();form=w.document.querySelector('#editorForm');
@@ -100,7 +100,7 @@ test('DOM: login, automatic herd, controls, veterinary event and exact sale',asy
  const labels=w.document.querySelector('#workLabels');[...labels.options].forEach(o=>o.selected=o.textContent==='À échographier');labels.dispatchEvent(new w.Event('change'));
  const groups=w.document.querySelector('#workGroup');groups.value=[...groups.options].find(o=>o.textContent==='Lot bâtiment').value;groups.dispatchEvent(new w.Event('change'));
  assert.equal(w.document.querySelectorAll('#herdList [data-id]').length,8,'heifers AND label AND group');
- w.document.querySelector('[data-view="home"]').click();assert.equal(w.document.querySelector('.stat strong').textContent,'11');
+ w.document.querySelector('[data-view="home"]').click();assert.equal(w.document.querySelector('.home-count strong').textContent,'11');
  const taskButtons=[...w.document.querySelectorAll('[data-task-label]')].filter(b=>b.textContent.includes('À échographier')||b.textContent.includes('À surveiller'));assert.equal(taskButtons.length,2);
  for(const button of taskButtons)assert.match(button.textContent,/8/,'no duplicated active assignment');
  const echoTask=taskButtons.find(b=>b.textContent.includes('À échographier'));echoTask.click();w.document.querySelector('#herdList [data-id]').click();

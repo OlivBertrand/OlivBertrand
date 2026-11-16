@@ -134,6 +134,31 @@ def test_logout_and_cursor(app):
     assert a.get('/api/changes').status_code==401
 
 
+def test_persistent_session_survives_app_restart_and_expires_without_password_storage(app,monkeypatch):
+    from server.app import SESSION_LIFETIME
+    import hashlib
+    a,h=login(app)
+    cookie=a.get_cookie('tb_session')
+    assert cookie.http_only and cookie.same_site=='Strict'
+    assert cookie.max_age==SESSION_LIFETIME==30*86400
+    # A new app process reads the durable session, not a browser password.
+    restarted=create_app(app.config['STORE'].url,testing=True)
+    client=restarted.test_client();client.set_cookie('tb_session',cookie.value)
+    assert client.get('/api/session').status_code==200
+    token_hash=hashlib.sha256(cookie.value.encode()).hexdigest()
+    with restarted.config['STORE'].transaction(write=True) as db:
+        row=db.execute('SELECT * FROM sessions WHERE token=?',(token_hash,)).fetchone()
+        assert row and row['token']!=cookie.value
+        db.execute('UPDATE sessions SET expires=? WHERE token=?',(int(__import__('time').time())+86400,token_hash))
+    renewed=client.get('/api/session')
+    assert renewed.status_code==200
+    assert 'HttpOnly' in renewed.headers['Set-Cookie']
+    assert client.get('/api/session').headers.get('Set-Cookie') is None
+    with restarted.config['STORE'].transaction(write=True) as db:
+        db.execute('UPDATE sessions SET expires=0 WHERE token=?',(token_hash,))
+    assert client.get('/api/session').status_code==401
+
+
 def test_fail_closed_without_database(monkeypatch):
     monkeypatch.delenv('DATABASE_URL',raising=False)
     app=create_app(testing=True);c=app.test_client()

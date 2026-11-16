@@ -12,9 +12,10 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from .store import Store
 from .domain import Rejected, apply_operations, public_record, KINDS
 
-ASSETS = {'index.html', 'styles.css', 'app.js', 'sync.js', 'sw.js', 'manifest.webmanifest',
+ASSETS = {'index.html', 'styles.css', 'field-ui.css', 'ui-kit.js', 'app.js', 'sync.js', 'sw.js', 'manifest.webmanifest',
           'quality.js', 'reproduction.js', 'herd-work.js', 'enhancements.js', 'enhancements.css', 'herd-overview.js', 'herd-overview.css', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'}
 DUMMY_HASH = generate_password_hash('not-a-user-password', method='scrypt')
+SESSION_LIFETIME = 30 * 86400
 
 
 def create_app(database_url=None, testing=False):
@@ -66,7 +67,7 @@ def create_app(database_url=None, testing=False):
             raw = request.cookies.get('tb_session', '')
             token = hashlib.sha256(raw.encode()).hexdigest()
             with store.transaction() as db:
-                row = db.execute('SELECT s.csrf,u.id,u.name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires>? AND u.active=1', (token, int(time.time()))).fetchone()
+                row = db.execute('SELECT s.csrf,s.expires,u.id,u.name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires>? AND u.active=1', (token, int(time.time()))).fetchone()
             if not row:
                 raise Rejected('Connexion individuelle nécessaire.', 401)
             if request.method != 'GET' and not secrets.compare_digest(request.headers.get('X-CSRF-Token', ''), row['csrf']):
@@ -118,17 +119,29 @@ def create_app(database_url=None, testing=False):
                     db.execute('DELETE FROM login_attempts WHERE key=?', (key,))
                 token, csrf = secrets.token_urlsafe(48), secrets.token_urlsafe(32)
                 db.execute('DELETE FROM sessions WHERE expires<=?', (now,))
-                db.execute('INSERT INTO sessions(token,user_id,csrf,expires) VALUES (?,?,?,?)', (hashlib.sha256(token.encode()).hexdigest(), username, csrf, now + 7 * 86400))
+                db.execute('INSERT INTO sessions(token,user_id,csrf,expires) VALUES (?,?,?,?)', (hashlib.sha256(token.encode()).hexdigest(), username, csrf, now + SESSION_LIFETIME))
         if failed:
             raise Rejected('Identifiants invalides.', 401)
         response = jsonify(user={'id': username, 'name': row['name'], 'role': row['role']}, csrf=csrf)
-        response.set_cookie('tb_session', token, secure=not testing, httponly=True, samesite='Strict', max_age=7 * 86400, path='/')
+        response.set_cookie('tb_session', token, secure=not testing, httponly=True, samesite='Strict', max_age=SESSION_LIFETIME, path='/')
         return response
 
     @app.get('/api/session')
     @authenticated
     def session():
-        return jsonify(user={k: g.user[k] for k in ('id', 'name', 'role')}, csrf=g.user['csrf'])
+        response = jsonify(user={k: g.user[k] for k in ('id', 'name', 'role')}, csrf=g.user['csrf'])
+        now = int(time.time())
+        # Renew only near expiry, avoiding a remote journal write at every poll.
+        # An expired/revoked session always fails authentication before this path.
+        if g.user['expires'] < now + 7 * 86400:
+            raw = request.cookies['tb_session']
+            with store.transaction(write=True) as db:
+                changed = db.execute('UPDATE sessions SET expires=? WHERE token=? AND expires>? AND user_id IN (SELECT id FROM users WHERE active=1)',
+                                     (now + SESSION_LIFETIME, hashlib.sha256(raw.encode()).hexdigest(), now))
+                if changed.rowcount != 1:
+                    raise Rejected('Connexion individuelle nécessaire.', 401)
+            response.set_cookie('tb_session', raw, secure=not testing, httponly=True, samesite='Strict', max_age=SESSION_LIFETIME, path='/')
+        return response
 
     @app.post('/api/logout')
     @authenticated
