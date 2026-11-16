@@ -1,0 +1,16 @@
+.home-herd-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:20px 0 10px}
+.home-herd-header h2{margin:0;font-size:19px}
+.herd-overview-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.herd-overview-card{border:1px solid var(--line);background:var(--panel);padding:13px;border-radius:15px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;min-height:104px;box-shadow:var(--shadow);color:var(--ink)}
+.herd-overview-card strong{font-variant-numeric:tabular-nums;font-size:27px;line-height:1.1;color:var(--green)}
+.herd-overview-card .herd-overview-name{font-weight:730;font-size:13px;line-height:1.2}
+.herd-overview-card small{color:var(--sub);font-size:11px;line-height:1.3}
+.herd-overview-card:focus-visible{outline:3px solid var(--green);outline-offset:2px}
+.herd-overview-card.needs-review{border-color:#d6b888;background:#fffaf0}
+.herd-overview-card.needs-review strong{color:#94610f}
+.herd-overview-caption{font-size:12px;color:var(--sub);margin:9px 0 3px;line-height:1.45}
+.herd-overview-note{margin-top:10px}
+.herd-category-filter{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.herd-category-filter label{font-weight:650;font-size:13px}
+.herd-category-filter select{min-width:190px;flex:1}
+@media(min-width:620px){.herd-overview-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
