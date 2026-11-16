@@ -211,3 +211,126 @@ openPlant=function(id){
   loadPlantPhotos(id,m.querySelector('#plantPhotos'));
 };
 
+function openEditHarvest(id,parent){
+  const h=state.harvests.find(x=>x.id===id); if(!h)return;
+  const canChangeSpecies=!(h.sessions||[]).length && state.activeHarvestSession?.harvestId!==id;
+  const speciesOpts=['sichuan','korean','japanese','timut'].map(k=>`<option value="${k}" ${k===h.species?'selected':''}>${SPECIES[k].name}</option>`).join('');
+  const m=openModal(`<h2>Modifier le lot</h2><form id="editHarvestForm" class="stack">
+    <div class="field"><label>Nom du lot</label><input name="name" value="${valAttr(h.name)}" required></div>
+    <div class="field"><label>Espèce</label><select name="species" ${canChangeSpecies?'':'disabled'}>${speciesOpts}</select></div>
+    ${canChangeSpecies?'':'<div class="small-note">L’espèce est verrouillée dès qu’une session existe, afin de préserver la cohérence de l’historique.</div>'}
+    <div class="field"><label>Commentaire</label><textarea name="note">${esc(h.note||'')}</textarea></div>
+    <button class="btn">Enregistrer</button>
+  </form>`);
+  m.querySelector('#editHarvestForm').onsubmit=e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const nextSpecies=canChangeSpecies?fd.get('species'):h.species;
+    if(nextSpecies!==h.species){
+      h.species=nextSpecies;
+      h.plantIds=state.plants.filter(p=>p.species===nextSpecies).map(p=>p.id);
+    }
+    h.name=fd.get('name').trim();
+    h.note=fd.get('note').trim();
+    h.updatedAt=nowISO();
+    save();
+    m.remove();
+    if(parent?.remove) parent.remove();
+    render();
+    openHarvest(id);
+  };
+}
+
+function openEditSession(hid,sid,parent){
+  const h=state.harvests.find(x=>x.id===hid); if(!h)return;
+  const s=(h.sessions||[]).find(x=>x.id===sid); if(!s)return;
+  const selected=new Set(s.plantIds||h.plantIds||[]);
+  const boxes=(h.plantIds||[]).map(id=>`<label class="plant-choice"><input type="checkbox" name="plant" value="${id}" ${selected.has(id)?'checked':''}> <span>${esc(state.plants.find(p=>p.id===id)?.code||id)}</span></label>`).join('');
+  const m=openModal(`<h2>Modifier la session</h2><form id="editSessionForm" class="stack">
+    <div class="grid two">
+      <div class="field"><label>Début</label><input type="datetime-local" name="start" value="${valAttr(String(s.start||'').slice(0,16))}" required></div>
+      <div class="field"><label>Fin</label><input type="datetime-local" name="end" value="${valAttr(String(s.end||'').slice(0,16))}" required></div>
+    </div>
+    <div class="field"><label>Poids frais (g)</label><input type="number" min="0" step="0.1" name="freshWeight" value="${valAttr(s.freshWeight)}" required></div>
+    <details open><summary>Plants concernés</summary><div class="plant-select-grid" style="margin-top:8px">${boxes}</div></details>
+    <div class="field"><label>Commentaire</label><textarea name="note">${esc(s.note||'')}</textarea></div>
+    <button class="btn">Enregistrer</button>
+  </form>`);
+  m.querySelector('#editSessionForm').onsubmit=e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const start=fd.get('start'), end=fd.get('end'), plantIds=fd.getAll('plant');
+    if(new Date(end)<new Date(start)) return alert('La fin doit être après le début.');
+    if(!plantIds.length) return alert('Sélectionne au moins un plant.');
+    Object.assign(s,{
+      start,end,freshWeight:fd.get('freshWeight'),
+      note:fd.get('note').trim(),plantIds,updatedAt:nowISO()
+    });
+    h.updatedAt=nowISO();
+    save();
+    m.remove();
+    if(parent?.remove) parent.remove();
+    render();
+    openHarvest(hid);
+  };
+}
+
+openHarvest=function(id){
+  const h=state.harvests.find(x=>x.id===id); if(!h)return;
+  const total=(h.sessions||[]).reduce((s,x)=>s+(+x.freshWeight||0),0);
+  const duration=(h.sessions||[]).reduce((s,x)=>s+Math.max(0,(new Date(x.end)-new Date(x.start))/3600000||0),0);
+  const isActive=state.activeHarvestSession?.harvestId===id;
+  const sessions=(h.sessions||[]).slice().reverse();
+
+  const m=openModal(`<div class="section-title"><div><div class="eyebrow">${SPECIES[h.species].name}</div><h2>${esc(h.name)}</h2></div><span class="badge">${total.toFixed(0)} g</span></div>
+    ${h.note?`<div class="note-card">${esc(h.note)}</div>`:''}
+    <div class="grid two mini-stats">
+      <div class="card"><strong>${h.sessions.length}</strong><span>sessions</span></div>
+      <div class="card"><strong>${duration.toFixed(1)} h</strong><span>temps cumulé</span></div>
+    </div>
+    <div class="action-strip">
+      ${isActive?'<button class="btn" id="timerBtn">Terminer la session</button>':'<button class="btn" id="timerBtn">▶ Démarrer maintenant</button>'}
+      <button class="btn secondary" id="manualSession">Saisie manuelle</button>
+      <button class="btn secondary" id="editHarvestPlants">Plants</button>
+      <button class="btn secondary" id="editHarvest">Modifier le lot</button>
+    </div>
+    <div class="section-title"><h3>Sessions</h3></div>
+    <div class="timeline">${sessions.length?sessions.map(s=>`<div class="timeline-row static harvest-session-row">
+      <strong>${(+s.freshWeight||0).toFixed(0)} g</strong>
+      <span>${fmtDateTime(s.start)} → ${fmtDateTime(s.end)}</span>
+      <small>${s.note?esc(s.note):''}</small>
+      <div class="inline-actions">
+        <button type="button" class="mini-edit" data-edit-session="${s.id}">Modifier</button>
+        <button type="button" class="mini-delete" data-del-session="${s.id}">Suppr.</button>
+      </div>
+    </div>`).join(''):'<div class="muted">Aucune session.</div>'}</div>
+    <details class="danger-zone"><summary>Options du lot</summary><button type="button" class="btn danger small" id="deleteHarvest">Supprimer ce lot</button></details>`);
+
+  m.querySelector('#timerBtn').onclick=()=>{m.remove(); isActive?finishHarvestTimer():startHarvestTimer(id);};
+  m.querySelector('#manualSession').onclick=()=>openSession(id,m);
+  m.querySelector('#editHarvestPlants').onclick=()=>openHarvestPlantSelection(id,m);
+  m.querySelector('#editHarvest').onclick=()=>openEditHarvest(id,m);
+  m.querySelectorAll('[data-edit-session]').forEach(b=>b.onclick=()=>openEditSession(id,b.dataset.editSession,m));
+  m.querySelectorAll('[data-del-session]').forEach(b=>b.onclick=()=>{
+    if(!confirm('Supprimer cette session de récolte ?')) return;
+    if(typeof markDeleted==='function') markDeleted('sessions',b.dataset.delSession);
+    h.sessions=(h.sessions||[]).filter(s=>s.id!==b.dataset.delSession);
+    h.updatedAt=nowISO();
+    save();
+    m.remove();
+    render();
+    openHarvest(id);
+  });
+  m.querySelector('#deleteHarvest').onclick=()=>{
+    const linked=state.transformations.filter(t=>t.harvestId===id).length;
+    if(linked) return alert('Ce lot est utilisé par '+linked+' essai(s) de transformation. Supprime ou rattache ces essais avant.');
+    if(!confirm('Supprimer définitivement ce lot et toutes ses sessions ?')) return;
+    if(state.activeHarvestSession?.harvestId===id) state.activeHarvestSession=null;
+    if(typeof markDeleted==='function') markDeleted('harvests',id);
+    state.harvests=state.harvests.filter(x=>x.id!==id);
+    save();
+    m.remove();
+    render();
+  };
+};
+
