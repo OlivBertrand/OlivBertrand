@@ -456,6 +456,9 @@ const zSyncPhotosV064=zSyncPhotos;
 zSyncPhotos=async function(token,notify){
   state.deleted=zDeletedShape(state.deleted);
   for(const tomb of state.deleted.photoRefs||[]){
+    // Supprimer aussi toute copie locale présente sur cet appareil avant la fusion,
+    // sinon un ancien téléphone pourrait réenvoyer une photo déjà supprimée.
+    try{ await deletePhotoLocal(tomb.id); }catch{}
     if(!tomb.drivePath) continue;
     try{
       const r=await fetch(zGraphUrl(tomb.drivePath),{
