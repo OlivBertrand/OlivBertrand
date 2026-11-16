@@ -17,6 +17,9 @@ def canonical(value):
 class Store:
     def __new__(cls, url):
         if url == "onedrive-journal://":
+            if os.environ.get('TB_ONEDRIVE_FAST_REPLAY')=='1':
+                from .cached_onedrive_store import CachedJournalStore
+                return CachedJournalStore.from_environment()
             from .onedrive_store import JournalStore
             return JournalStore.from_environment()
         return super().__new__(cls)
