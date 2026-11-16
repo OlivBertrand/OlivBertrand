@@ -334,3 +334,60 @@ openHarvest=function(id){
   };
 };
 
+function openEditTransformation(id,parent){
+  const t=state.transformations.find(x=>x.id===id); if(!t)return;
+  const lots=state.harvests.map(h=>`<option value="${h.id}" ${h.id===t.harvestId?'selected':''}>${esc(h.name)}</option>`).join('');
+  const m=openModal(`<h2>Modifier l’essai</h2><form id="editTransForm" class="stack">
+    <div class="field"><label>Nom</label><input name="name" value="${valAttr(t.name)}" required></div>
+    <div class="field"><label>Lot source</label><select name="harvestId"><option value="">—</option>${lots}</select></div>
+    <div class="grid two"><div class="field"><label>Poids entrant (g)</label><input type="number" step="0.1" name="inputWeight" value="${valAttr(t.inputWeight)}"></div><div class="field"><label>Poids final commercialisable (g)</label><input type="number" step="0.1" name="finalWeight" value="${valAttr(t.finalWeight)}"></div></div>
+    <div class="grid two"><div class="field"><label>Température (°C)</label><input type="number" step="0.1" name="temperature" value="${valAttr(t.temperature)}"></div><div class="field"><label>Durée (h)</label><input type="number" step="0.1" name="duration" value="${valAttr(t.duration)}"></div></div>
+    <div class="field"><label>Matériel</label><input name="equipment" value="${valAttr(t.equipment)}"></div>
+    <div class="grid two"><div class="field"><label>Après séchage (g)</label><input type="number" step="0.1" name="dryWeight" value="${valAttr(t.dryWeight)}"></div><div class="field"><label>Graines / déchets (g)</label><input type="number" step="0.1" name="wasteWeight" value="${valAttr(t.wasteWeight)}"></div></div>
+    <div class="field"><label>Observations</label><textarea name="note">${esc(t.note||'')}</textarea></div>
+    <button class="btn">Enregistrer</button>
+  </form>`);
+  m.querySelector('#editTransForm').onsubmit=e=>{
+    e.preventDefault();
+    Object.assign(t,Object.fromEntries(new FormData(e.target).entries()),{updatedAt:nowISO()});
+    save(); m.remove(); if(parent?.remove)parent.remove(); renderQuality(); openTransformationDetail(id);
+  };
+}
+
+openTransformationDetail=function(id){
+  const t=state.transformations.find(x=>x.id===id); if(!t)return;
+  const lot=state.harvests.find(h=>h.id===t.harvestId);
+  const input=+t.inputWeight||0, dry=+t.dryWeight||0, fin=+t.finalWeight||0, waste=+t.wasteWeight||0;
+  const dryPct=input?Math.round(dry/input*1000)/10:null;
+  const finalPct=input?Math.round(fin/input*1000)/10:null;
+  const loss=input?Math.round((input-fin)/input*1000)/10:null;
+  const m=openModal(`<div class="eyebrow">Essai de transformation</div><h2>${esc(t.name)}</h2>
+    <div class="row"><button class="btn secondary small" id="editTrans">Modifier</button></div>
+    <div class="grid two mini-stats">
+      <div class="card"><strong>${finalPct!==null?finalPct+' %':'—'}</strong><span>rendement final</span></div>
+      <div class="card"><strong>${dryPct!==null?dryPct+' %':'—'}</strong><span>rendement après séchage</span></div>
+    </div>
+    <div class="detail-table">
+      <div><span>Lot source</span><strong>${lot?esc(lot.name):'—'}</strong></div>
+      <div><span>Entrant</span><strong>${input||'—'} g</strong></div>
+      <div><span>Après séchage</span><strong>${dry||'—'} g</strong></div>
+      <div><span>Final commercialisable</span><strong>${fin||'—'} g</strong></div>
+      <div><span>Graines / déchets</span><strong>${waste||'—'} g</strong></div>
+      <div><span>Perte totale</span><strong>${loss!==null?loss+' %':'—'}</strong></div>
+      <div><span>Température</span><strong>${t.temperature||'—'} °C</strong></div>
+      <div><span>Durée</span><strong>${t.duration||'—'} h</strong></div>
+      <div><span>Matériel</span><strong>${esc(t.equipment||'—')}</strong></div>
+    </div>
+    ${t.note?`<div class="note-card">${esc(t.note)}</div>`:''}
+    <details class="danger-zone"><summary>Options</summary><button class="btn danger small" id="deleteTrans">Supprimer cet essai</button></details>`);
+  m.querySelector('#editTrans').onclick=()=>openEditTransformation(id,m);
+  m.querySelector('#deleteTrans').onclick=()=>{
+    const linked=state.tastings.filter(x=>x.transformationId===id).length;
+    if(linked) return alert('Cet essai est utilisé par '+linked+' dégustation(s). Supprime ou rattache ces dégustations avant.');
+    if(!confirm('Supprimer cet essai de transformation ?')) return;
+    if(typeof markDeleted==='function') markDeleted('transformations',id);
+    state.transformations=state.transformations.filter(x=>x.id!==id);
+    save(); m.remove(); renderQuality();
+  };
+};
+
