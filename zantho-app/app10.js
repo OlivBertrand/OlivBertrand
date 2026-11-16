@@ -391,3 +391,64 @@ openTransformationDetail=function(id){
   };
 };
 
+function openEditTasting(id,parent){
+  const t=state.tastings.find(x=>x.id===id); if(!t)return;
+  const sources=state.transformations.map(x=>`<option value="${x.id}" ${x.id===t.transformationId?'selected':''}>${esc(x.name)}</option>`).join('');
+  const selected=new Set(t.descriptors||[]);
+  const descriptors=Object.entries(sensoryFamilies).map(([fam,vals])=>`<div class="card"><strong>${fam}</strong><div class="stack" style="margin-top:8px">${vals.map(v=>`<label class="row"><input style="width:auto;min-height:auto" type="checkbox" name="desc" value="${esc(v)}" ${selected.has(v)?'checked':''}> ${esc(v)}</label>`).join('')}</div></div>`).join('');
+  const opt=(vals,current)=>vals.map(v=>`<option ${v===current?'selected':''}>${v}</option>`).join('');
+  const m=openModal(`<h2>Modifier la dégustation</h2><form id="editTasteForm" class="stack">
+    <div class="field"><label>Nom</label><input name="name" value="${valAttr(t.name)}" required></div>
+    <div class="field"><label>Date</label><input type="date" name="date" value="${valAttr(t.date)}"></div>
+    <div class="field"><label>Essai / lot</label><select name="transformationId"><option value="">—</option>${sources}</select></div>
+    <h3>Descripteurs aromatiques</h3><div class="grid two">${descriptors}</div>
+    <div class="grid two">
+      <div class="field"><label>Intensité générale</label><select name="intensity">${opt(['Faible','Moyenne','Forte','Très forte'],t.intensity)}</select></div>
+      <div class="field"><label>Complexité</label><select name="complexity">${opt(['Simple','Moyenne','Complexe','Très complexe'],t.complexity)}</select></div>
+      <div class="field"><label>Équilibre</label><select name="balance">${opt(['Déséquilibré','Correct','Équilibré','Très harmonieux'],t.balance)}</select></div>
+      <div class="field"><label>Longueur en bouche</label><select name="length">${opt(['Courte','Moyenne','Longue','Très longue'],t.length)}</select></div>
+    </div>
+    <div class="field"><label>Intérêt gastronomique</label><select name="gastro">${opt(['Faible','Intéressant','Très intéressant','Remarquable'],t.gastro)}</select></div>
+    <div class="field"><label>Amertume / astringence / défauts</label><textarea name="defects">${esc(t.defects||'')}</textarea></div>
+    <div class="field"><label>Accords / idées culinaires</label><textarea name="pairings">${esc(t.pairings||'')}</textarea></div>
+    <div class="field"><label>Commentaire libre</label><textarea name="note">${esc(t.note||'')}</textarea></div>
+    <button class="btn">Enregistrer</button>
+  </form>`);
+  m.querySelector('#editTasteForm').onsubmit=e=>{
+    e.preventDefault();
+    const fd=new FormData(e.target);
+    const obj=Object.fromEntries(fd.entries());
+    obj.descriptors=fd.getAll('desc');
+    Object.assign(t,obj,{updatedAt:nowISO()});
+    save(); m.remove(); if(parent?.remove)parent.remove(); renderQuality(); openTastingDetail(id);
+  };
+}
+
+openTastingDetail=function(id){
+  const t=state.tastings.find(x=>x.id===id); if(!t)return;
+  const source=state.transformations.find(x=>x.id===t.transformationId);
+  const descriptors=(t.descriptors||[]).map(d=>`<span class="descriptor-chip">${esc(d)}</span>`).join('');
+  const m=openModal(`<div class="eyebrow">Dégustation · ${fmtDate(t.date)}</div><h2>${esc(t.name)}</h2>
+    <div class="row"><button class="btn secondary small" id="editTaste">Modifier</button></div>
+    <div class="small-note">${source?'Essai : '+esc(source.name):'Sans essai associé'}</div>
+    <div class="descriptor-strip large">${descriptors||'<span class="muted">Aucun descripteur.</span>'}</div>
+    <div class="detail-table">
+      <div><span>Intensité</span><strong>${esc(t.intensity||'—')}</strong></div>
+      <div><span>Complexité</span><strong>${esc(t.complexity||'—')}</strong></div>
+      <div><span>Équilibre</span><strong>${esc(t.balance||'—')}</strong></div>
+      <div><span>Longueur</span><strong>${esc(t.length||'—')}</strong></div>
+      <div><span>Intérêt gastronomique</span><strong>${esc(t.gastro||'—')}</strong></div>
+    </div>
+    ${t.defects?`<div class="note-card"><strong>Défauts / astringence</strong><br>${esc(t.defects)}</div>`:''}
+    ${t.pairings?`<div class="note-card"><strong>Accords</strong><br>${esc(t.pairings)}</div>`:''}
+    ${t.note?`<div class="note-card">${esc(t.note)}</div>`:''}
+    <details class="danger-zone"><summary>Options</summary><button class="btn danger small" id="deleteTaste">Supprimer cette dégustation</button></details>`);
+  m.querySelector('#editTaste').onclick=()=>openEditTasting(id,m);
+  m.querySelector('#deleteTaste').onclick=()=>{
+    if(!confirm('Supprimer cette dégustation ?')) return;
+    if(typeof markDeleted==='function') markDeleted('tastings',id);
+    state.tastings=state.tastings.filter(x=>x.id!==id);
+    save(); m.remove(); renderQuality();
+  };
+};
+
