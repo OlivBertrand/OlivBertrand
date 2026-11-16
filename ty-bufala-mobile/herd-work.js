@@ -74,7 +74,7 @@ function mountHomeWork(){
  for(const [attr,key] of [['label','labels'],['group','group']])box.querySelectorAll('[data-task-'+attr+']').forEach(b=>b.onclick=()=>{workFilter.labels=[];workFilter.group='';workFilter[key]=attr==='label'?[b.dataset.taskLabel]:b.dataset.taskGroup;ui.herdStatus='present';ui.herdCategory='';nav('herd');});
 }
 function herdWorkCompletionChanges(event){
- const suggestion={'Échographie':'À échographier','Vaccination':'À vacciner','Tarissement':'À tarir','Sortie':'À sortir'}[event.type];if(!suggestion||event.confirmation!=='confirmed')return [];
+ const suggestion={'Échographie':'À échographier','Vaccination':'À vacciner','Tarissement':'À tarir','Sortie':'À sortir'}[event.type];if(!suggestion||event.confirmation!=='confirmed'||!event.date||event.date>localToday()||event.dateUnknown||event.cancelled)return [];
  const assignments=activeLabels(event.animalId).filter(x=>norm(labelName(x.labelId))===norm(suggestion));if(!assignments.length||!confirm(`Marquer l’étiquette « ${suggestion} » comme terminée ?`))return [];
  return assignments.map(x=>({kind:'animalLabelAssignments',data:{...x,completedAt:nowISO(),completionReason:'done',eventId:event.id}}));
 }

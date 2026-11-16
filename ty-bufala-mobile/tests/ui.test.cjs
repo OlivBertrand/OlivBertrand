@@ -103,5 +103,9 @@ test('DOM: login, automatic herd, controls, veterinary event and exact sale',asy
  w.document.querySelector('[data-view="home"]').click();assert.equal(w.document.querySelector('.stat strong').textContent,'11');
  const taskButtons=[...w.document.querySelectorAll('[data-task-label]')].filter(b=>b.textContent.includes('À échographier')||b.textContent.includes('À surveiller'));assert.equal(taskButtons.length,2);
  for(const button of taskButtons)assert.match(button.textContent,/8/,'no duplicated active assignment');
+ const echoTask=taskButtons.find(b=>b.textContent.includes('À échographier'));echoTask.click();w.document.querySelector('#herdList [data-id]').click();
+ w.document.querySelector('[data-quick-event="Échographie"]').click();form=w.document.querySelector('#editorForm');form.querySelector('[name="date"]').value='2027-01-01';form.querySelector('[name="result"]').value='positive';form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(()=>!w.document.querySelector('#editorForm'),'future diagnosis saved');
+ w.document.querySelector('[data-view="home"]').click();assert.match([...w.document.querySelectorAll('[data-task-label]')].find(b=>b.textContent.includes('À échographier')).textContent,/8/,'future diagnosis does not complete a current task');
+
  assert.deepEqual(failures,[]);console.log('DOM checks passed. Layout and real browser/PWA installation remain unverified.');dom.window.close();
 });
