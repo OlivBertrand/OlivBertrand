@@ -6,7 +6,7 @@ const {randomUUID}=require('node:crypto');
 Object.defineProperty(globalThis,'crypto',{value:{randomUUID},configurable:true});
 let online=true,chain=Promise.resolve();
 Object.defineProperty(globalThis,'navigator',{value:{get onLine(){return online},locks:{request(_name,fn){const next=chain.then(fn);chain=next.catch(()=>{});return next;}}},configurable:true});
-async function database(){const factory=new IDBFactory();return new Promise((resolve,reject)=>{const r=factory.open('device',2);r.onupgradeneeded=()=>{for(const k of ['animals','events','sales','outbox','meta','conflicts'])r.result.createObjectStore(k,{keyPath:'id'});};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+async function database(){const factory=new IDBFactory();return new Promise((resolve,reject)=>{const r=factory.open('device',2);r.onupgradeneeded=()=>{for(const k of ['animals','events','sales','labelDefinitions','animalLabelAssignments','herdGroups','animalGroupAssignments','outbox','meta','conflicts'])r.result.createObjectStore(k,{keyPath:'id'});};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
 async function device(username){
  const response=await fetch('http://127.0.0.1:8000/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password:'local-test-only-password'})});assert.equal(response.status,200);
  const session=await response.json(),cookie=response.headers.get('set-cookie').split(';')[0];const cloud=new CloudSync(await database(),session.user,session.csrf);
@@ -62,4 +62,16 @@ test('conflict resolution preserves reference event IDs containing colons',async
  assert.equal((await cloud.all('events'))[0].id,id);
  assert.equal((await cloud.all('events'))[0].description,'remote');
  assert.equal((await cloud.all('outbox')).length,0);
+});
+
+test('offline label assignments survive client restart and replay across two users',async()=>{
+ const a=await device('alice'),b=await device('suzanna'),animal=(await a.all('animals'))[0];
+ online=false;
+ await a.save([{kind:'labelDefinitions',data:{id:'offline_label',name:'Action hors ligne'}},{kind:'animalLabelAssignments',data:{id:'offline_assignment',animalId:animal.id,labelId:'offline_label',assignedAt:new Date().toISOString()}}]);
+ assert.equal((await a.all('outbox')).length,1);
+ const restarted=new CloudSync(a.db,a.user,a.csrf);restarted.request=a.request.bind(restarted);
+ assert.equal((await restarted.all('animalLabelAssignments')).filter(x=>x.id==='offline_assignment').length,1);
+ online=true;await restarted.run();assert.equal(restarted.error,'');await b.run();
+ assert.equal((await b.all('animalLabelAssignments')).filter(x=>x.id==='offline_assignment').length,1);
+ await restarted.run();assert.equal((await restarted.all('outbox')).length,0);
 });

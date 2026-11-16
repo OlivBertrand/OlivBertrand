@@ -5,7 +5,7 @@ import re
 from datetime import date
 from .store import canonical, utcnow
 
-KINDS = ('animals', 'events', 'sales')
+KINDS = ('animals', 'events', 'sales', 'labelDefinitions', 'animalLabelAssignments', 'herdGroups', 'animalGroupAssignments')
 
 
 class Rejected(Exception):
@@ -117,6 +117,8 @@ def validate(db, kind, data, old):
             raise Rejected('Type d’événement obligatoire.')
         if not data.get('date') and not data.get('dateUnknown'):
             raise Rejected('Date obligatoire, ou date historique inconnue explicite.')
+        if 'cancelled' in data and type(data['cancelled']) is not bool:
+            raise Rejected('Annulation logique invalide.')
         if data.get('confirmation') not in (None, 'confirmed', 'uncertain', 'planned'):
             raise Rejected('Niveau de confirmation invalide.')
         if data.get('type') in ('Échographie', 'Diagnostic de gestation') and data.get('confirmation') == 'confirmed' and data.get('result') not in ('positive', 'negative', 'uncertain'):
@@ -128,6 +130,36 @@ def validate(db, kind, data, old):
         for key in ('milkWithdrawalDays', 'meatWithdrawalDays', 'durationDays'):
             if data.get(key) not in ('', None) and (type(data[key]) is not int or data[key] < 0):
                 raise Rejected(f'{key} doit être un entier positif ou nul.')
+    elif kind in ('labelDefinitions', 'herdGroups'):
+        name = str(data.get('name') or '').strip()
+        if not name or len(name) > 80:
+            raise Rejected('Libellé requis, limité à 80 caractères.')
+        data['name'] = name
+        for row in db.execute('SELECT id,data FROM records WHERE kind=?', (kind,)).fetchall():
+            if row['id'] != data['id'] and json.loads(row['data']).get('name', '').casefold() == name.casefold():
+                raise Rejected('Ce libellé existe déjà.', 409, code='duplicate_definition')
+    elif kind in ('animalLabelAssignments', 'animalGroupAssignments'):
+        role = 'labelId' if kind == 'animalLabelAssignments' else 'groupId'
+        definition = 'labelDefinitions' if role == 'labelId' else 'herdGroups'
+        closed = 'completedAt' if role == 'labelId' else 'endedAt'
+        if old and any(data.get(key) != old.get(key) for key in ('animalId',role)):
+            raise Rejected('Une affectation conserve ses références ; en créer une nouvelle pour la réattribuer.')
+        for target_kind, identifier in (('animals', data.get('animalId')), (definition, data.get(role))):
+            if not identifier or not db.execute('SELECT id FROM records WHERE kind=? AND id=?', (target_kind,identifier)).fetchone():
+                raise Rejected('Animal ou définition introuvable.')
+        valid_date(data.get('dueDate'), 'dueDate')
+        for key in ('assignedAt', 'startedAt', 'completedAt', 'endedAt'):
+            if data.get(key):
+                from datetime import datetime
+                try:
+                    datetime.fromisoformat(data[key].replace('Z', '+00:00'))
+                except (TypeError, ValueError, AttributeError):
+                    raise Rejected('Date d’affectation invalide.') from None
+        if not data.get(closed):
+            for row in db.execute('SELECT id,data FROM records WHERE kind=?', (kind,)).fetchall():
+                other = json.loads(row['data'])
+                if row['id'] != data['id'] and other.get('animalId') == data['animalId'] and not other.get(closed) and (role == 'groupId' or other.get(role) == data[role]):
+                    raise Rejected('Affectation active déjà présente. Synchroniser et comparer.', 409, code='assignment_conflict')
     else:
         if not isinstance(data.get('lines'), list) or not 1 <= len(data['lines']) <= 100:
             raise Rejected('Une vente doit comporter 1 à 100 lignes.')

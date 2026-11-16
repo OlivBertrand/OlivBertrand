@@ -45,7 +45,7 @@ class CloudSync {
  async pull() {
   const meta=(await this.all('meta')).find(x=>x.id==='cursor');let cursor=meta?.value||0,more=true;
   while(more){const result=await this.request('changes?after='+cursor),pending=await this.all('outbox');
-   await this.transaction(['animals','events','sales','meta'],tx=>{
+   await this.transaction([...this.db.objectStoreNames].filter(k=>!['outbox','conflicts'].includes(k)),tx=>{
     for(const change of result.changes){if(!pending.some(b=>b.operations.some(o=>o.kind===change.kind&&o.data.id===change.data.id)))tx.objectStore(change.kind).put({...change.data,_sync:'shared'});}
     tx.objectStore('meta').put({id:'cursor',value:result.cursor});
    });cursor=result.cursor;more=result.hasMore;
@@ -82,7 +82,7 @@ class CloudSync {
    for(const b of batches){if(b.operations.some(o=>keys.has(o.kind+':'+o.data.id))){removed.push(b);for(const o of b.operations)keys.add(o.kind+':'+o.data.id);}}
    const remote=[];for(const key of keys){const separator=key.indexOf(':'),kind=key.slice(0,separator),id=key.slice(separator+1);remote.push({kind,id,...await this.request('record/'+kind+'/'+encodeURIComponent(id))});}
    history.removed=removed;
-   await this.transaction(['outbox','conflicts','animals','events','sales'],tx=>{tx.objectStore('conflicts').put(history);for(const b of removed)tx.objectStore('outbox').delete(b.id);for(const r of remote){if(r.data)tx.objectStore(r.kind).put({...r.data,_sync:'shared'});else tx.objectStore(r.kind).delete(r.id);}});
+   await this.transaction([...this.db.objectStoreNames],tx=>{tx.objectStore('conflicts').put(history);for(const b of removed)tx.objectStore('outbox').delete(b.id);for(const r of remote){if(r.data)tx.objectStore(r.kind).put({...r.data,_sync:'shared'});else tx.objectStore(r.kind).delete(r.id);}});
   }
   this.onchange();
  }

@@ -8,3 +8,8 @@
 #loginForm {max-width:520px;margin:20px auto}
 #loginError {color:#8e2828}
 [hidden] {display:none !important}
+/* Bulk controls remain within reach above the bottom navigation. */
+.herd-selection-bar { position: sticky; top: 8px; z-index: 5; background: var(--paper, #fff); }
+.herd-selection-bar .filter-row { flex-wrap: wrap; }
+#herdList > input[type=checkbox] { width: 24px; height: 24px; margin: 12px 4px 4px; }
+[hidden] { display: none !important; }

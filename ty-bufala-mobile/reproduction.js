@@ -3,7 +3,7 @@
  'use strict';
  const TYPES=['Vue en chaleur','Saillie naturelle','Insémination','Mise avec taureau','Retrait du taureau','Échographie','Diagnostic de gestation','Contrôle de gestation prévu','Avortement','Vêlage','Naissance de veau mort-né','Problème de reproduction','Autre événement reproductif'];
  const category=e=>TYPES.includes(e.type)||['Saillie','Naissance','Mise à la reproduction (historique)','Prévision de vêlage (Excel)'].includes(e.type)?'reproduction':['Traitement','Vaccination','Intervention','Analyse','Maladie','Blessure'].includes(e.type)?'health':['Tarissement','Mise en lactation','Sevrage'].includes(e.type)?'production':e.type==='Changement de lot'?'groups':'other';
- const timeline=(events,filter='all')=>events.filter(e=>filter==='all'||category(e)===filter).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||String(a.id).localeCompare(String(b.id)));
+ const timeline=(events,filter='all')=>events.filter(e=>!e.cancelled&&(filter==='all'||category(e)===filter)).slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')||String(a.id).localeCompare(String(b.id)));
  function summary(events,today){
   const facts=timeline(events).filter(e=>e.confirmation==='confirmed'&&e.date&&e.date<=today&&!e.dateUnknown);
   const latest=types=>facts.find(e=>types.includes(e.type));

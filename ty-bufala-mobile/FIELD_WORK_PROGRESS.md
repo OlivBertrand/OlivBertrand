@@ -20,4 +20,10 @@ Ces essais ne prouvent pas encore la persistance OneDrive/Render. Coffre OAuth b
 
 ## Suite
 
-Lots C (étiquettes/lots) et D (Windows) encore à développer. L'intégration dans la version Windows actuelle nécessite son code source exact et une copie cohérente de sa base. Les ressources trouvées jusqu'ici incluent des éléments plus anciens ; elles ne prouvent pas l'accès à la version courante.
+Lot C développé : définitions et affectations séparées à IDs stables, révisions, étiquettes actives uniques, lot courant unique, clôtures et historique, sélection collective et lots atomiques de 25 animaux, filtres combinés et compteurs cliquables. Annulation logique d’événement, historique serveur consultable, statut reproductif recalculé. Annuler/corriger un vêlage exige de vérifier la fiche maternelle ; aucun descendant n’est supprimé. L’annulation d’un ancien changement de lactation/présence/lot signale explicitement qu’il faut vérifier la donnée courante, sans retour automatique.
+
+Essais : 87 tests Python, 18 tests JS de domaine, 4 scénarios HTTP/IndexedDB/DOM. Le parcours DOM sélectionne huit génisses, ajoute deux étiquettes puis répète une affectation sans doublon, affecte un lot et combine génisses + étiquette + lot. Le redémarrage du client conserve une affectation hors ligne en attente, ensuite reçue par un autre compte.
+
+Lot D en développement indépendant. L'intégration dans la version Windows actuelle nécessite son code source exact et une copie cohérente de sa base. Les ressources trouvées jusqu'ici incluent des éléments plus anciens ; elles ne prouvent pas l'accès à la version courante.
+
+Références Windows retrouvées dans les échanges récents : V70.4, révision `0e788d4a1a915db25c585007d0717bb0cd64b653`, et paquet connecteur `TY_BUFALA_BLEEZ_V705_FENETRE_WINDOWS_CORRIGEE.zip`. Ce SHA n’existe pas dans le dépôt GitHub mobile accessible. Le paquet V70.5 est récupéré pour inspection ; ne pas confondre ce connecteur avec le logiciel Windows complet.
