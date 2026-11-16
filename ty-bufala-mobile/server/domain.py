@@ -69,31 +69,47 @@ def validate(db, kind, data, old):
             raise Rejected('Préciser la date de sortie.')
         if data.get('lastCalving') and data.get('birthDate') and data['lastCalving'] < data['birthDate']:
             raise Rejected('Vêlage antérieur à la naissance de la mère.')
-        for relation, expected_sex in [('motherTag', 'F'), ('fatherTag', 'M')]:
-            parent_tag = tag(data.get(relation))
-            parent = db.execute('SELECT r.data FROM records r JOIN identities i ON i.animal_id=r.id WHERE r.kind=? AND i.tag=?', ('animals', parent_tag)).fetchone() if parent_tag else None
-            if parent:
-                import json
-                p = json.loads(parent['data'])
-                if p.get('sex') and p['sex'] != expected_sex:
-                    raise Rejected('Sexe du parent incompatible avec la filiation.')
-                if p.get('birthDate') and data.get('birthDate') and p['birthDate'] >= data['birthDate']:
-                    raise Rejected('Le parent doit être né avant son descendant.')
-        # Walk either parent. Unknown/external tags are kept as supplied, never invented.
-        parents = {tag(data.get('motherTag')), tag(data.get('fatherTag'))} - {''}
-        seen = set()
-        while parents:
-            parent = parents.pop()
-            if parent == data['earTag']:
+        import json
+        def parent_record(identifier=None, identification=None):
+            if identifier:
+                row = db.execute('SELECT data FROM records WHERE kind=? AND id=?', ('animals', identifier)).fetchone()
+            else:
+                row = db.execute('SELECT r.data FROM records r JOIN identities i ON i.animal_id=r.id WHERE r.kind=? AND i.tag=?', ('animals', tag(identification))).fetchone()
+            return json.loads(row['data']) if row else None
+        for prefix, expected_sex in [('mother', 'F'), ('father', 'M')]:
+            identifier, identification = data.get(prefix+'Id'), tag(data.get(prefix+'Tag'))
+            if identification and identification == data['earTag']:
                 raise Rejected('Filiation cyclique interdite.')
-            if parent in seen:
+            by_tag = parent_record(identification=identification) if identification else None
+            parent = parent_record(identifier=identifier) if identifier else by_tag
+            if identifier and not parent:
+                raise Rejected('Identifiant stable du parent introuvable.')
+            if identifier and identification and (not by_tag or by_tag['id'] != identifier):
+                raise Rejected('Identifiant et numéro du parent contradictoires.')
+            if parent:
+                if parent['id'] == data['id']:
+                    raise Rejected('Filiation cyclique interdite.')
+                if parent.get('sex') and parent['sex'] != expected_sex:
+                    raise Rejected('Sexe du parent incompatible avec la filiation.')
+                if parent.get('birthDate') and data.get('birthDate') and parent['birthDate'] >= data['birthDate']:
+                    raise Rejected('Le parent doit être né avant son descendant.')
+                data[prefix+'Id'] = parent['id']
+                data[prefix+'Tag'] = parent['earTag']
+        pending = [(data.get(prefix+'Id'), data.get(prefix+'Tag')) for prefix in ('mother','father')]
+        seen = set()
+        while pending:
+            identifier, identification = pending.pop()
+            if not identifier and not identification:
                 continue
-            seen.add(parent)
-            row = db.execute('SELECT r.data FROM records r JOIN identities i ON i.animal_id=r.id WHERE r.kind=? AND i.tag=?', ('animals', parent)).fetchone()
-            if row:
-                import json
-                ancestor = json.loads(row['data'])
-                parents.update({tag(ancestor.get('motherTag')), tag(ancestor.get('fatherTag'))} - {''})
+            parent = parent_record(identifier, identification)
+            if not parent:
+                continue  # external identities remain unconfirmed, never invented
+            if parent['id'] == data['id']:
+                raise Rejected('Filiation cyclique interdite.')
+            if parent['id'] in seen:
+                continue
+            seen.add(parent['id'])
+            pending.extend((parent.get(prefix+'Id'), parent.get(prefix+'Tag')) for prefix in ('mother','father'))
     elif kind == 'events':
         if not db.execute('SELECT id FROM records WHERE kind=? AND id=?', ('animals', data.get('animalId'))).fetchone():
             raise Rejected('Animal de cet événement introuvable.')

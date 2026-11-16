@@ -57,3 +57,11 @@ test('un cycle est une anomalie, un parent extérieur une information',()=>{
  const outside=Q.check({animals:[{...B,motherTag:'EXTERIEUR'}]},today);
  assert.ok(outside.issues.some(i=>i.code==='external_mother'&&i.severity==='info'));
 });
+test('filiation stable après correction des boucles, sans rattachement par ancien numéro',()=>{
+ const mother={...A,earTag:'FR999'};
+ const calf={...B,motherId:'a',motherTag:'FR001'};
+ const grandchild={...C,motherId:'b'};
+ const other={id:'other',earTag:'FR001',sex:'F',status:'present'};
+ assert.deepEqual(Q.descendants([mother,calf,grandchild,other],'a').map(x=>x.animal.id),['b','c']);
+ assert.deepEqual(Q.descendants([mother,calf,grandchild,other],'other'),[]);
+});

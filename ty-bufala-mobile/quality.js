@@ -42,11 +42,11 @@
   function descendants(animals,rootId){
     const origin=animals.find(a=>a.id===rootId);if(!origin)return [];
     const byMother=new Map();
-    for(const animal of animals){for(const parent of new Set([tag(animal.motherTag),tag(animal.fatherTag)])){if(!parent)continue;const list=byMother.get(parent)||[];list.push(animal);byMother.set(parent,list);}}
-    const seen=new Set([origin.id]),rows=[],queue=[{tag:tag(origin.earTag),depth:0}];
-    while(queue.length){const current=queue.shift();for(const child of byMother.get(current.tag)||[]){
+    for(const animal of animals){for(const parent of new Set(['mother','father'].map(role=>animal[role+'Id']?'id:'+animal[role+'Id']:'tag:'+tag(animal[role+'Tag'])))){if(parent==='tag:')continue;const list=byMother.get(parent)||[];list.push(animal);byMother.set(parent,list);}}
+    const seen=new Set([origin.id]),rows=[],queue=[{tag:'id:'+origin.id,legacy:'tag:'+tag(origin.earTag),depth:0}];
+    while(queue.length){const current=queue.shift();for(const child of [...(byMother.get(current.tag)||[]),...(byMother.get(current.legacy)||[])]){
       if(seen.has(child.id))continue;seen.add(child.id);rows.push({animal:child,depth:current.depth+1});
-      if(current.depth<30)queue.push({tag:tag(child.earTag),depth:current.depth+1});
+      if(current.depth<30)queue.push({tag:'id:'+child.id,legacy:'tag:'+tag(child.earTag),depth:current.depth+1});
     }}return rows;
   }
   function check(data,today){
