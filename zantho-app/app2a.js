@@ -49,7 +49,151 @@ async function putPhoto(rec){ const db=await photoDB(); return new Promise((res,
 async function getPhotosByPlant(plantId){ const db=await photoDB(); return new Promise((res,rej)=>{ const tx=db.transaction(PHOTO_STORE,'readonly'); const req=tx.objectStore(PHOTO_STORE).getAll(); req.onsuccess=()=>res(req.result.filter(x=>x.plantId===plantId).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))); req.onerror=()=>rej(req.error); }); }
 async function getPhoto(id){ const db=await photoDB(); return new Promise((res,rej)=>{ const req=db.transaction(PHOTO_STORE,'readonly').objectStore(PHOTO_STORE).get(id); req.onsuccess=()=>res(req.result||null); req.onerror=()=>rej(req.error); }); }
 async function getAllPhotos(){ const db=await photoDB(); return new Promise((res,rej)=>{ const req=db.transaction(PHOTO_STORE,'readonly').objectStore(PHOTO_STORE).getAll(); req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); }); }
-function openPhotoCapture(plantId,parent){ const m=openModal(`<h2>Photo de suivi — ${plantId}</h2><form id="photoForm" class="stack"><div class="field"><label>Photo</label><input type="file" name="photo" accept="image/*" capture="environment" required></div><div class="field"><label>Commentaire</label><input name="note"></div><button class="btn">Enregistrer</button></form>`); m.querySelector('#photoForm').onsubmit=async e=>{e.preventDefault(); const file=e.target.photo.files[0]; const createdAt=nowISO(); const rec={id:uid('photo'),plantId,blob:file,name:file.name||'photo.jpg',type:file.type||'image/jpeg',note:e.target.note.value,createdAt,synced:false}; await putPhoto(rec); state.photoRefs=mergeById(state.photoRefs||[],[{id:rec.id,plantId:rec.plantId,name:rec.name,type:rec.type,note:rec.note,createdAt,updatedAt:createdAt,drivePath:null}]); save(); m.remove(); parent.remove(); openPlant(plantId);}; }
+function openPhotoCapture(plantId,parent){
+  const m=openModal(`<div class="eyebrow">${esc(state.plants.find(x=>x.id===plantId)?.code||plantId)}</div>
+    <h2>Photo de suivi</h2>
+    <form id="photoForm" class="stack">
+      <div class="camera-capture">
+        <video id="cameraPreview" autoplay playsinline muted
+          style="width:100%;max-height:55vh;object-fit:cover;border-radius:14px;background:#111"></video>
+        <img id="capturedPreview" alt="Aperçu de la photo"
+          style="display:none;width:100%;max-height:55vh;object-fit:contain;border-radius:14px;background:#111">
+        <canvas id="cameraCanvas" hidden></canvas>
+        <div id="cameraStatus" class="small-note">Ouverture de l’appareil photo…</div>
+      </div>
+      <div class="grid two">
+        <button type="button" class="btn" id="takePhoto" disabled>Prendre la photo</button>
+        <button type="button" class="btn secondary" id="retakePhoto" hidden>Reprendre</button>
+      </div>
+      <button type="button" class="text-button" id="chooseExisting">Choisir une photo existante</button>
+      <input type="file" id="existingPhoto" accept="image/*" hidden>
+      <div class="field"><label>Commentaire</label><input name="note" placeholder="Facultatif"></div>
+      <button class="btn big" id="savePhoto" disabled>Enregistrer la photo</button>
+    </form>`);
+
+  const video=m.querySelector('#cameraPreview');
+  const canvas=m.querySelector('#cameraCanvas');
+  const image=m.querySelector('#capturedPreview');
+  const status=m.querySelector('#cameraStatus');
+  const take=m.querySelector('#takePhoto');
+  const retake=m.querySelector('#retakePhoto');
+  const existing=m.querySelector('#existingPhoto');
+  const choose=m.querySelector('#chooseExisting');
+  const saveBtn=m.querySelector('#savePhoto');
+  let stream=null;
+  let selectedFile=null;
+  let previewUrl=null;
+
+  const revokePreview=()=>{
+    if(previewUrl){ URL.revokeObjectURL(previewUrl); previewUrl=null; }
+  };
+  const stopCamera=()=>{
+    if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+    if(video) video.srcObject=null;
+  };
+  const showCaptured=file=>{
+    selectedFile=file;
+    stopCamera();
+    revokePreview();
+    previewUrl=URL.createObjectURL(file);
+    image.src=previewUrl;
+    image.style.display='block';
+    video.style.display='none';
+    retake.hidden=false;
+    take.hidden=true;
+    saveBtn.disabled=false;
+    status.textContent='Photo prête à être enregistrée.';
+  };
+
+  const startCamera=async()=>{
+    selectedFile=null;
+    revokePreview();
+    image.removeAttribute('src');
+    image.style.display='none';
+    video.style.display='block';
+    retake.hidden=true;
+    take.hidden=false;
+    take.disabled=true;
+    saveBtn.disabled=true;
+    status.textContent='Ouverture de l’appareil photo…';
+    stopCamera();
+
+    if(!navigator.mediaDevices?.getUserMedia){
+      status.textContent='Accès direct à la caméra non disponible sur ce navigateur. Utilise « Choisir une photo existante ».';
+      return;
+    }
+    try{
+      stream=await navigator.mediaDevices.getUserMedia({
+        video:{facingMode:{ideal:'environment'}},
+        audio:false
+      });
+      video.srcObject=stream;
+      await video.play();
+      take.disabled=false;
+      status.textContent='Cadre le plant puis prends la photo.';
+    }catch(err){
+      console.warn('Caméra Zantho',err);
+      status.textContent='Impossible d’ouvrir la caméra. Autorise l’accès à l’appareil photo dans les réglages du navigateur, ou choisis une photo existante.';
+    }
+  };
+
+  take.onclick=async()=>{
+    if(!video.videoWidth||!video.videoHeight) return;
+    canvas.width=video.videoWidth;
+    canvas.height=video.videoHeight;
+    canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
+    const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.92));
+    if(!blob) return alert('Impossible de créer la photo.');
+    const code=state.plants.find(x=>x.id===plantId)?.code||plantId;
+    const file=new File([blob],`zantho-${code}-${Date.now()}.jpg`,{type:'image/jpeg',lastModified:Date.now()});
+    showCaptured(file);
+  };
+  retake.onclick=startCamera;
+  choose.onclick=()=>{
+    stopCamera();
+    existing.value='';
+    existing.click();
+  };
+  existing.onchange=()=>{
+    const file=existing.files?.[0];
+    if(file) showCaptured(file);
+    else startCamera();
+  };
+
+  m.querySelector('#photoForm').onsubmit=async e=>{
+    e.preventDefault();
+    if(!selectedFile) return alert('Prends une photo avant de l’enregistrer.');
+    const createdAt=nowISO();
+    const rec={
+      id:uid('photo'),plantId,blob:selectedFile,
+      name:selectedFile.name||'photo.jpg',
+      type:selectedFile.type||'image/jpeg',
+      note:e.target.note.value,createdAt,synced:false
+    };
+    await putPhoto(rec);
+    state.photoRefs=mergeById(state.photoRefs||[],[{
+      id:rec.id,plantId:rec.plantId,name:rec.name,type:rec.type,note:rec.note,
+      createdAt,updatedAt:createdAt,drivePath:null
+    }]);
+    save();
+    stopCamera();
+    revokePreview();
+    m.remove();
+    if(parent?.remove) parent.remove();
+    openPlant(plantId);
+  };
+
+  const cleanupObserver=new MutationObserver(()=>{
+    if(!m.isConnected){
+      stopCamera();
+      revokePreview();
+      cleanupObserver.disconnect();
+    }
+  });
+  cleanupObserver.observe(document.body,{childList:true,subtree:true});
+  startCamera();
+}
+
 async function loadPlantPhotos(id,el){ const photos=await getPhotosByPlant(id); el.innerHTML=photos.length?photos.map(p=>`<img alt="Photo ${id}" src="${URL.createObjectURL(p.blob)}">`).join(''):'<div class="muted">Aucune photo.</div>'; }
 
 function renderHarvests(){

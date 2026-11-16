@@ -1,7 +1,7 @@
-const CACHE='zantho-v062';
+const CACHE='zantho-v063';
 const ASSETS=[
   './','./index.html','./styles.css',
-  './app1.js?v=0.6.2','./app2a.js','./app2b.js','./app3.js?v=0.6.2','./app4.js','./app5.js','./app6.js','./app7.js','./app8.js?v=0.6.2','./app9.js?v=0.6.2',
+  './app1.js?v=0.6.3','./app2a.js?v=0.6.3','./app2b.js','./app3.js?v=0.6.3','./app4.js','./app5.js','./app6.js','./app7.js','./app8.js?v=0.6.3','./app9.js?v=0.6.3',
   './manifest.webmanifest','./icon.svg'
 ];
 
