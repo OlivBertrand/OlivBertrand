@@ -1,4 +1,4 @@
-const APP_VERSION = '0.6.0';
+const APP_VERSION = '0.6.1';
 const STORAGE_KEY = 'zantho-state-v1';
 const PHOTO_DB = 'zantho-photos-v1';
 const PHOTO_STORE = 'photos';
@@ -10,6 +10,44 @@ const SPECIES = {
   tas_f:{name:'Tasmanie ♀', latin:'Tasmannia lanceolata', color:'#3295b7'},
   tas_m:{name:'Tasmanie ♂', latin:'Tasmannia lanceolata', color:'#144d84'},
   timut:{name:'Timut', latin:'Zanthoxylum armatum', color:'#d9aa22'}
+};
+
+const PLANT_NICKNAMES = {
+  'L1-TAS-01':'Yvette','L1-TAS-02':'Léonce','L1-TAS-03':'Alexandre','L1-TAS-04':'Annick','L1-TAS-05':'Estelle',
+  'L1-TAS-06':'Micheline','L1-TAS-07':'Georgette','L1-TAS-08':'Jean','L1-TAS-09':'Marie-France','L1-TAS-10':'Yvonne',
+  'L1-JAP-01':'Oufti','L1-JAP-02':'Mazette','L1-JAP-03':'Crapôde','L1-JAP-04':'Di Djaal','L1-JAP-05':'Macrâle',
+  'L1-JAP-06':'Li Porè','L1-JAP-07':'Crompir','L1-JAP-08':'Rawète','L1-JAP-09':'Téch’tu','L1-JAP-10':'Sacwè',
+  'L1-JAP-11':'Qué Novel ?','L1-JAP-12':'Drache',
+  'L2-COR-01':'Renaud','L2-COR-02':'Jacques Brel','L2-COR-03':'Léo Ferré','L2-COR-04':'Jean Ferrat',
+  'L2-COR-05':'Francis Cabrel','L2-COR-06':'Laurent Voulzy','L2-COR-07':'Stromae','L2-COR-08':'Ben Mazué',
+  'L2-COR-09':'Pomme','L2-COR-10':'Solann','L2-COR-11':'Lara Fabian','L2-COR-12':'Céline Dion',
+  'L2-SIC-01':'René Magritte','L2-SIC-02':'James Ensor','L2-SIC-03':'Jean-Michel Folon','L2-SIC-04':'Kevin De Bruyne',
+  'L2-SIC-05':'Hergé','L2-SIC-06':'André Franquin','L2-SIC-07':'Georges Simenon','L2-SIC-08':'François Damiens',
+  'L2-SIC-09':'Atomium','L2-SIC-10':'Jean-Baptiste « Toots » Thielemans','L2-SIC-11':'Manneken Pis',
+  'L2-SIC-12':'Peter Paul Rubens','L2-SIC-13':'Pieter Bruegel L’Ancien','L2-SIC-14':'Gérard Mercator',
+  'L2-SIC-15':'Adolphe Sax','L2-SIC-16':'Benoît Poelvoorde','L2-SIC-17':'Teddy Bear',
+  'L3-SIC-01':'Bruxelles','L3-SIC-02':'Liège','L3-SIC-03':'Namur','L3-SIC-04':'Mons','L3-SIC-05':'Charleroi',
+  'L3-SIC-06':'Gand','L3-SIC-07':'Ostende','L3-SIC-08':'Tilff','L3-SIC-09':'Kasteel','L3-SIC-10':'Chimay',
+  'L3-SIC-11':'Orval','L3-SIC-12':'Chicon','L3-SIC-13':'Craquelin','L3-SIC-14':'Gaufre','L3-SIC-15':'Gueuze',
+  'L3-SIC-16':'Roi Philippe','L3-SIC-17':'Cougnou','L3-SIC-18':'Spéculoos','L3-SIC-19':'Mitraillette',
+  'L3-SIC-20':'Cramique','L3-SIC-21':'Sauce Lapin','L3-SIC-22':'Peket','L3-SIC-23':'Fricadelle',
+  'L4-SIC-01':'Tintin','L4-SIC-02':'Milou','L4-SIC-03':'Gaston','L4-SIC-04':'Spirou','L4-SIC-05':'Marsupilami','L4-SIC-06':'Lucky Luke',
+  'L4-TIM-01':'Fernande','L4-TIM-02':'Cupidon S’en Fout','L4-TIM-03':'Le Roi Boiteux','L4-TIM-04':'Le Roi Des Cons',
+  'L4-TIM-05':'Les Copains D’Abord','L4-TIM-06':'Je Me Suis Fait Tout Petit','L4-TIM-07':'J’Ai Rendez-Vous Avec Vous',
+  'L4-TIM-08':'Les Passantes','L4-TIM-09':'Brave Margot','L4-TIM-10':'Hécatombe',
+  'L5-TIM-01':'La Chasse Aux Papillons','L5-TIM-02':'La Non-Demande En Mariage','L5-TIM-03':'Saturne',
+  'L5-TIM-04':'Les Sabots D’Hélène','L5-TIM-05':'Misogynie À Part','L5-TIM-06':'La Ronde Des Jurons','L5-TIM-07':'Trompettes De La Renommée'
+};
+
+const NICKNAME_UNIVERSES = {
+  'L1-TAS':'Prénoms Désuets',
+  'L1-JAP':'Wallonie — Mots & Expressions',
+  'L2-COR':'Chanson Francophone',
+  'L2-SIC':'Belgique — Artistes & Culture',
+  'L3-SIC':'Belgique — Villes, Saveurs & Clins D’Œil',
+  'L4-SIC':'Belgique — Personnages De BD',
+  'L4-TIM':'Georges Brassens — Chansons',
+  'L5-TIM':'Georges Brassens — Chansons'
 };
 
 const nowISO = () => new Date().toISOString();
@@ -57,6 +95,8 @@ function buildPlants(l2,l3,l4){
     counters[key]=(counters[key]||0)+1;
     p.groupCode=key;
     p.code=`${key}-${String(counters[key]).padStart(2,'0')}`;
+    p.nickname=PLANT_NICKNAMES[p.code]||'';
+    p.nicknameUniverse=NICKNAME_UNIVERSES[p.groupCode]||'';
   });
   return plants;
 }
@@ -72,7 +112,7 @@ function enforceOfficialPlan(){
     +state.plan?.sichuanLine4!==6 ||
     target.some(t=>{
       const old=oldById.get(t.id);
-      return !old || old.species!==t.species || old.line!==t.line || old.position!==t.position || old.code!==t.code || old.groupCode!==t.groupCode;
+      return !old || old.species!==t.species || old.line!==t.line || old.position!==t.position || old.code!==t.code || old.groupCode!==t.groupCode || old.nickname!==t.nickname || old.nicknameUniverse!==t.nicknameUniverse;
     });
 
   if(!layoutMismatch) return;
@@ -86,6 +126,8 @@ function enforceOfficialPlan(){
       line:t.line,
       position:t.position,
       species:t.species,
+      nickname:t.nickname,
+      nicknameUniverse:t.nicknameUniverse,
       plantedAt:old.plantedAt||t.plantedAt,
       createdAt:old.createdAt||t.createdAt
     };
@@ -99,7 +141,7 @@ enforceOfficialPlan();
 
 // Hors-ligne : réseau d'abord, cache de secours.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=0.6.0').catch(err=>console.warn('Service worker',err)));
+  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js?v=0.6.1').catch(err=>console.warn('Service worker',err)));
 }
 
 const app=document.querySelector('#app');
