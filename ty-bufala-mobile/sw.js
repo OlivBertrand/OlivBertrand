@@ -1,5 +1,5 @@
-const CACHE = 'ty-bufala-mobile-v5-herd-overview';
-const ASSETS = ['./','./index.html','./styles.css','./app.js','./sync.js','./quality.js','./enhancements.js','./enhancements.css','./herd-overview.js','./herd-overview.css','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable-512.png'];
+const CACHE = 'ty-bufala-mobile-v7-herd-work';
+const ASSETS = ['./','./index.html','./styles.css','./app.js','./reproduction.js','./herd-work.js','./sync.js','./quality.js','./enhancements.js','./enhancements.css','./herd-overview.js','./herd-overview.css','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable-512.png'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil((async () => {
   const keys = await caches.keys();

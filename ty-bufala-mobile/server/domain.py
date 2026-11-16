@@ -1,10 +1,11 @@
 """Version checks and veterinary/business data validation; no inferred medical facts."""
+import json
 import hashlib
 import re
 from datetime import date
 from .store import canonical, utcnow
 
-KINDS = ('animals', 'events', 'sales')
+KINDS = ('animals', 'events', 'sales', 'labelDefinitions', 'animalLabelAssignments', 'herdGroups', 'animalGroupAssignments')
 
 
 class Rejected(Exception):
@@ -69,31 +70,46 @@ def validate(db, kind, data, old):
             raise Rejected('Préciser la date de sortie.')
         if data.get('lastCalving') and data.get('birthDate') and data['lastCalving'] < data['birthDate']:
             raise Rejected('Vêlage antérieur à la naissance de la mère.')
-        for relation, expected_sex in [('motherTag', 'F'), ('fatherTag', 'M')]:
-            parent_tag = tag(data.get(relation))
-            parent = db.execute('SELECT r.data FROM records r JOIN identities i ON i.animal_id=r.id WHERE r.kind=? AND i.tag=?', ('animals', parent_tag)).fetchone() if parent_tag else None
-            if parent:
-                import json
-                p = json.loads(parent['data'])
-                if p.get('sex') and p['sex'] != expected_sex:
-                    raise Rejected('Sexe du parent incompatible avec la filiation.')
-                if p.get('birthDate') and data.get('birthDate') and p['birthDate'] >= data['birthDate']:
-                    raise Rejected('Le parent doit être né avant son descendant.')
-        # Walk either parent. Unknown/external tags are kept as supplied, never invented.
-        parents = {tag(data.get('motherTag')), tag(data.get('fatherTag'))} - {''}
-        seen = set()
-        while parents:
-            parent = parents.pop()
-            if parent == data['earTag']:
+        def parent_record(identifier=None, identification=None):
+            if identifier:
+                row = db.execute('SELECT data FROM records WHERE kind=? AND id=?', ('animals', identifier)).fetchone()
+            else:
+                row = db.execute('SELECT r.data FROM records r JOIN identities i ON i.animal_id=r.id WHERE r.kind=? AND i.tag=?', ('animals', tag(identification))).fetchone()
+            return json.loads(row['data']) if row else None
+        for prefix, expected_sex in [('mother', 'F'), ('father', 'M')]:
+            identifier, identification = data.get(prefix+'Id'), tag(data.get(prefix+'Tag'))
+            if identification and identification == data['earTag']:
                 raise Rejected('Filiation cyclique interdite.')
-            if parent in seen:
+            by_tag = parent_record(identification=identification) if identification else None
+            parent = parent_record(identifier=identifier) if identifier else by_tag
+            if identifier and not parent:
+                raise Rejected('Identifiant stable du parent introuvable.')
+            if identifier and identification and (not by_tag or by_tag['id'] != identifier):
+                raise Rejected('Identifiant et numéro du parent contradictoires.')
+            if parent:
+                if parent['id'] == data['id']:
+                    raise Rejected('Filiation cyclique interdite.')
+                if parent.get('sex') and parent['sex'] != expected_sex:
+                    raise Rejected('Sexe du parent incompatible avec la filiation.')
+                if parent.get('birthDate') and data.get('birthDate') and parent['birthDate'] >= data['birthDate']:
+                    raise Rejected('Le parent doit être né avant son descendant.')
+                data[prefix+'Id'] = parent['id']
+                data[prefix+'Tag'] = parent['earTag']
+        pending = [(data.get(prefix+'Id'), data.get(prefix+'Tag')) for prefix in ('mother','father')]
+        seen = set()
+        while pending:
+            identifier, identification = pending.pop()
+            if not identifier and not identification:
                 continue
-            seen.add(parent)
-            row = db.execute('SELECT r.data FROM records r JOIN identities i ON i.animal_id=r.id WHERE r.kind=? AND i.tag=?', ('animals', parent)).fetchone()
-            if row:
-                import json
-                ancestor = json.loads(row['data'])
-                parents.update({tag(ancestor.get('motherTag')), tag(ancestor.get('fatherTag'))} - {''})
+            parent = parent_record(identifier, identification)
+            if not parent:
+                continue  # external identities remain unconfirmed, never invented
+            if parent['id'] == data['id']:
+                raise Rejected('Filiation cyclique interdite.')
+            if parent['id'] in seen:
+                continue
+            seen.add(parent['id'])
+            pending.extend((parent.get(prefix+'Id'), parent.get(prefix+'Tag')) for prefix in ('mother','father'))
     elif kind == 'events':
         if not db.execute('SELECT id FROM records WHERE kind=? AND id=?', ('animals', data.get('animalId'))).fetchone():
             raise Rejected('Animal de cet événement introuvable.')
@@ -101,9 +117,49 @@ def validate(db, kind, data, old):
             raise Rejected('Type d’événement obligatoire.')
         if not data.get('date') and not data.get('dateUnknown'):
             raise Rejected('Date obligatoire, ou date historique inconnue explicite.')
+        if 'cancelled' in data and type(data['cancelled']) is not bool:
+            raise Rejected('Annulation logique invalide.')
+        if data.get('confirmation') not in (None, 'confirmed', 'uncertain', 'planned'):
+            raise Rejected('Niveau de confirmation invalide.')
+        if data.get('type') in ('Échographie', 'Diagnostic de gestation') and data.get('confirmation') == 'confirmed' and data.get('result') not in ('positive', 'negative', 'uncertain'):
+            raise Rejected('Résultat du diagnostic obligatoire : pleine, vide ou indéterminé.')
+        if data.get('bullId'):
+            bull = db.execute("SELECT data FROM records WHERE kind='animals' AND id=?", (data['bullId'],)).fetchone()
+            if not bull or json.loads(bull['data']).get('sex') != 'M':
+                raise Rejected('Le taureau doit référencer un mâle enregistré.')
         for key in ('milkWithdrawalDays', 'meatWithdrawalDays', 'durationDays'):
             if data.get(key) not in ('', None) and (type(data[key]) is not int or data[key] < 0):
                 raise Rejected(f'{key} doit être un entier positif ou nul.')
+    elif kind in ('labelDefinitions', 'herdGroups'):
+        name = str(data.get('name') or '').strip()
+        if not name or len(name) > 80:
+            raise Rejected('Libellé requis, limité à 80 caractères.')
+        data['name'] = name
+        for row in db.execute('SELECT id,data FROM records WHERE kind=?', (kind,)).fetchall():
+            if row['id'] != data['id'] and json.loads(row['data']).get('name', '').casefold() == name.casefold():
+                raise Rejected('Ce libellé existe déjà.', 409, code='duplicate_definition')
+    elif kind in ('animalLabelAssignments', 'animalGroupAssignments'):
+        role = 'labelId' if kind == 'animalLabelAssignments' else 'groupId'
+        definition = 'labelDefinitions' if role == 'labelId' else 'herdGroups'
+        closed = 'completedAt' if role == 'labelId' else 'endedAt'
+        if old and any(data.get(key) != old.get(key) for key in ('animalId',role)):
+            raise Rejected('Une affectation conserve ses références ; en créer une nouvelle pour la réattribuer.')
+        for target_kind, identifier in (('animals', data.get('animalId')), (definition, data.get(role))):
+            if not identifier or not db.execute('SELECT id FROM records WHERE kind=? AND id=?', (target_kind,identifier)).fetchone():
+                raise Rejected('Animal ou définition introuvable.')
+        valid_date(data.get('dueDate'), 'dueDate')
+        for key in ('assignedAt', 'startedAt', 'completedAt', 'endedAt'):
+            if data.get(key):
+                from datetime import datetime
+                try:
+                    datetime.fromisoformat(data[key].replace('Z', '+00:00'))
+                except (TypeError, ValueError, AttributeError):
+                    raise Rejected('Date d’affectation invalide.') from None
+        if not data.get(closed):
+            for row in db.execute('SELECT id,data FROM records WHERE kind=?', (kind,)).fetchall():
+                other = json.loads(row['data'])
+                if row['id'] != data['id'] and other.get('animalId') == data['animalId'] and not other.get(closed) and (role == 'groupId' or other.get(role) == data[role]):
+                    raise Rejected('Affectation active déjà présente. Synchroniser et comparer.', 409, code='assignment_conflict')
     else:
         if not isinstance(data.get('lines'), list) or not 1 <= len(data['lines']) <= 100:
             raise Rejected('Une vente doit comporter 1 à 100 lignes.')
@@ -189,7 +245,7 @@ def apply_operations(store, actor, operations, initial_import=None):
                 raise
             changed_at = utcnow()
             revision += 1
-            for key in ('revision', 'author', 'deviceId', 'changedAt', '_sync'):
+            for key in ('revision', 'author', 'deviceId', 'changedAt', '_sync', '_localRevision'):
                 data.pop(key, None)
             data['updatedAt'] = changed_at
             if not old:

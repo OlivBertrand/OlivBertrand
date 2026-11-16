@@ -1,7 +1,7 @@
 'use strict';
 /* Durable, account-scoped IndexedDB outbox. Receipts commit with the local record. */
 class CloudSync {
- constructor(db, user, csrf) { this.db=db;this.user=user;this.csrf=csrf;this.running=false;this.error='';this.onchange=()=>{}; }
+ constructor(db, user, csrf) { this.db=db;this.user=user;this.csrf=csrf;this.running=false;this.error='';this.confirmed=false;this.onchange=()=>{}; }
  all(store) {return new Promise((resolve,reject)=>{const tx=this.db.transaction(store),r=tx.objectStore(store).getAll();r.onsuccess=()=>resolve(r.result);tx.onerror=()=>reject(tx.error);});}
  transaction(stores,fn){return new Promise((resolve,reject)=>{const tx=this.db.transaction(stores,'readwrite');try{fn(tx);}catch(e){tx.abort();reject(e);return;}tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||new Error('Écriture interrompue'));});}
  async request(path, options={}) { const response=await fetch('/api/'+path,{credentials:'same-origin',...options,headers:{'Content-Type':'application/json','X-CSRF-Token':this.csrf||'',...options.headers}});const data=await response.json();if(!response.ok){const error=new Error(data.error||'Serveur indisponible');error.status=response.status;error.details=data;throw error;}return data; }
@@ -33,6 +33,7 @@ class CloudSync {
   this.onchange();this.run().catch(()=>{});
  }
  async accept(batch,receipts) {
+  if(!Array.isArray(receipts)||receipts.length!==batch.operations.length||batch.operations.some(o=>!receipts.some(r=>r.opId===o.opId&&r.kind===o.kind&&r.id===o.data.id)))throw new Error('Accusés incomplets : saisies conservées dans la file locale.');
   const queued=await this.all('outbox'),later=queued.filter(b=>b.id!==batch.id);
   await this.transaction([...new Set(receipts.map(r=>r.kind)),'outbox'],tx=>{
    for(const r of receipts) {
@@ -45,7 +46,7 @@ class CloudSync {
  async pull() {
   const meta=(await this.all('meta')).find(x=>x.id==='cursor');let cursor=meta?.value||0,more=true;
   while(more){const result=await this.request('changes?after='+cursor),pending=await this.all('outbox');
-   await this.transaction(['animals','events','sales','meta'],tx=>{
+   await this.transaction([...this.db.objectStoreNames].filter(k=>!['outbox','conflicts'].includes(k)),tx=>{
     for(const change of result.changes){if(!pending.some(b=>b.operations.some(o=>o.kind===change.kind&&o.data.id===change.data.id)))tx.objectStore(change.kind).put({...change.data,_sync:'shared'});}
     tx.objectStore('meta').put({id:'cursor',value:result.cursor});
    });cursor=result.cursor;more=result.hasMore;
@@ -62,7 +63,8 @@ class CloudSync {
     try {const result=await this.request('sync',{method:'POST',body:JSON.stringify({operations:batch.operations})});await this.accept(batch,result.receipts);}
     catch(error){if(error.status===409||error.status===422){await this.transaction(['outbox'],tx=>tx.objectStore('outbox').put({...batch,blocked:{...error.details,status:error.status}}));}throw error;}
    }
-   await this.pull();
+   await this.pull();this.confirmed=true;
+   await this.transaction(['meta'],tx=>tx.objectStore('meta').put({id:'lastConfirmed',value:new Date().toISOString()}));
   } catch(error){this.error=error.message;}
   finally{this.running=false;this.onchange();}
  }
@@ -82,7 +84,7 @@ class CloudSync {
    for(const b of batches){if(b.operations.some(o=>keys.has(o.kind+':'+o.data.id))){removed.push(b);for(const o of b.operations)keys.add(o.kind+':'+o.data.id);}}
    const remote=[];for(const key of keys){const separator=key.indexOf(':'),kind=key.slice(0,separator),id=key.slice(separator+1);remote.push({kind,id,...await this.request('record/'+kind+'/'+encodeURIComponent(id))});}
    history.removed=removed;
-   await this.transaction(['outbox','conflicts','animals','events','sales'],tx=>{tx.objectStore('conflicts').put(history);for(const b of removed)tx.objectStore('outbox').delete(b.id);for(const r of remote){if(r.data)tx.objectStore(r.kind).put({...r.data,_sync:'shared'});else tx.objectStore(r.kind).delete(r.id);}});
+   await this.transaction([...this.db.objectStoreNames],tx=>{tx.objectStore('conflicts').put(history);for(const b of removed)tx.objectStore('outbox').delete(b.id);for(const r of remote){if(r.data)tx.objectStore(r.kind).put({...r.data,_sync:'shared'});else tx.objectStore(r.kind).delete(r.id);}});
   }
   this.onchange();
  }

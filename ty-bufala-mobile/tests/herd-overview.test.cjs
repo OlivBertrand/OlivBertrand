@@ -1,6 +1,6 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict');
-const H=require('./herd-overview.js');
+const H=require('../herd-overview.js');
 const today='2026-11-16';
 const animal=(id,sex,birth,fields={})=>({id,sex,birthDate:birth,status:'present',...fields});
 test('one animal -> one exclusive category; exits excluded',()=>{
