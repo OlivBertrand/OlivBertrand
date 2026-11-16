@@ -8,10 +8,16 @@ test('DOM: login, automatic herd, controls, veterinary event and exact sale',asy
  w.fetch=async(url,options={})=>{const response=await fetch(new URL(url,w.location.href),{...options,headers:{...options.headers,Cookie:cookie}});if(response.headers.get('set-cookie'))cookie=response.headers.get('set-cookie').split(';')[0];return response;};
  w.scrollTo=()=>{};w.confirm=()=>true;w.setInterval=()=>1;w.structuredClone=structuredClone;
  const failures=[];w.addEventListener('error',e=>failures.push(e.message));w.addEventListener('unhandledrejection',e=>failures.push(String(e.reason)));
- w.eval(['sync.js','app.js','quality.js','enhancements.js'].map(f=>fs.readFileSync(path.join(base,f),'utf8')).join('\n'));
+ w.eval(['sync.js','herd-overview.js','app.js','quality.js','enhancements.js'].map(f=>fs.readFileSync(path.join(base,f),'utf8')).join('\n'));
  await wait(()=>w.document.querySelector('#username'),'login');
  w.document.querySelector('#username').value='alice';w.document.querySelector('#password').value='local-test-only-password';w.document.querySelector('#loginForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  await wait(()=>w.document.querySelector('#quickAnimal'),'home');await wait(()=>w.document.querySelector('.stat strong')?.textContent==='1','automatic herd');
+ assert.equal(w.document.querySelectorAll('.herd-overview-card').length,10,'all exclusive herd groups should be visible');
+ assert.equal(w.document.querySelector('[data-herd-category="femaleUnknown"] strong').textContent,'1');
+ w.document.querySelector('[data-herd-category="femaleUnknown"]').click();
+ assert.equal(w.document.querySelector('#herdCategory').value,'femaleUnknown');
+ assert.equal(w.document.querySelectorAll('#herdList [data-id]').length,1);
+ w.document.querySelector('[data-view="home"]').click();
  w.document.querySelector('[data-view="herd"]').click();await wait(()=>w.document.querySelector('#herdList [data-id]'),'herd');
  w.document.querySelector('#herdList [data-id]').click();w.document.querySelector('#addEvent').click();
  let form=w.document.querySelector('#editorForm');form.querySelector('[name="type"]').value='Traitement';form.querySelector('[name="description"]').value='Observation synthétique';form.querySelector('[name="medication"]').value='Test sans médicament réel';form.querySelector('[name="dose"]').value='Non applicable';form.querySelector('[name="milkWithdrawalDays"]').value='0';

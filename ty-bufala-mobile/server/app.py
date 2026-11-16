@@ -13,7 +13,7 @@ from .store import Store
 from .domain import Rejected, apply_operations, public_record, KINDS
 
 ASSETS = {'index.html', 'styles.css', 'app.js', 'sync.js', 'sw.js', 'manifest.webmanifest',
-          'quality.js', 'enhancements.js', 'enhancements.css', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'}
+          'quality.js', 'enhancements.js', 'enhancements.css', 'herd-overview.js', 'herd-overview.css', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'}
 DUMMY_HASH = generate_password_hash('not-a-user-password', method='scrypt')
 
 

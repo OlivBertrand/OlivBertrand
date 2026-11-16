@@ -2,6 +2,14 @@
 
 PWA Android/ordinateur avec API authentifiée et base commune. Cette branche ne remplace pas la production statique existante. Aucune donnée d’élevage ni aucun secret n’est inclus dans le dépôt.
 
+## Tableau de bord du cheptel (branche complémentaire)
+
+Sur la page d’accueil : **total présent** et effectifs exclusifs par catégorie (en lactation, taries, génisses confirmées, jeunes femelles de moins de 12 mois, jeunes mâles de moins de 24 mois, taureaux reproducteurs confirmés, autres mâles adultes, bufflonnes ayant déjà vêlé mais à classer, femelles à préciser, autres à préciser). Chaque carte mène au filtre correspondant.
+
+Les champs synchronisés `productionStatus`, `reproductiveStatus`, `maleRole`, `productionStatusDate` sont saisis dans la fiche. Le serveur valide les combinaisons. Les événements **Tarissement** et **Mise en lactation** peuvent, après confirmation, actualiser le statut courant dans le même lot atomique que l’événement. Les prévisions de vêlage et le potentiel laitier Excel ne sont jamais interprétés comme une lactation réelle.
+
+Le compteur se recalcule immédiatement sur la copie locale à chaque saisie et au retour de synchronisation (polling existant d’environ 30 secondes lorsque l’application est ouverte). Ce n’est pas un flux temps réel permanent lorsque le téléphone est fermé, et les modifications non transmises sont explicitement incluses. **Aucune donnée réelle ni déploiement ne sont inclus dans cette branche**.
+
 ## Réalisé
 
 - API Flask, PostgreSQL pour l’hébergement durable, SQLite uniquement pour les essais locaux. Le serveur refuse SQLite sur Render.

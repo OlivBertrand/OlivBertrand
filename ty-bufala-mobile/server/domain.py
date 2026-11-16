@@ -43,6 +43,24 @@ def validate(db, kind, data, old):
             raise Rejected('Cette identification appartient déjà à un animal.', 409, code='duplicate_tag')
         if data.get('sex', '') not in ('F', 'M', '') or data.get('status') not in ('present', 'sorti', 'archive'):
             raise Rejected('Sexe ou statut invalide.')
+        production=data.get('productionStatus') or ''
+        reproduction=data.get('reproductiveStatus') or ''
+        male_role=data.get('maleRole') or ''
+        if production not in ('', 'lactating', 'dry') or reproduction not in ('', 'heifer', 'calved') or male_role not in ('', 'breeding_bull', 'other'):
+            raise Rejected('Catégorie du cheptel inconnue.')
+        if data.get('sex') != 'F' and (production or reproduction):
+            raise Rejected('La lactation ou le statut de génisse exigent un animal femelle.')
+        if data.get('sex') != 'M' and male_role:
+            raise Rejected('Le statut de taureau exige un animal mâle.')
+        if reproduction == 'heifer' and (production or data.get('lastCalving')):
+            raise Rejected('Une génisse ne peut pas être en lactation, tarie ou avoir déjà vêlé.')
+        valid_date(data.get('productionStatusDate'), 'productionStatusDate')
+        if production and data.get('birthDate'):
+            born=date.fromisoformat(data['birthDate'])
+            today=date.today()
+            months=(today.year-born.year)*12+today.month-born.month-(today.day<born.day)
+            if 0 <= months < 12:
+                raise Rejected('Un animal de moins de 12 mois ne peut pas être en lactation ou tari.')
         if data.get('birthDate') and data['birthDate'] > date.today().isoformat():
             raise Rejected('Une naissance future ne peut pas être enregistrée comme réelle.')
         if data.get('exitDate') and data.get('birthDate') and data['exitDate'] < data['birthDate']:
