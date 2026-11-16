@@ -1,4 +1,5 @@
 """Version checks and veterinary/business data validation; no inferred medical facts."""
+import json
 import hashlib
 import re
 from datetime import date
@@ -69,7 +70,6 @@ def validate(db, kind, data, old):
             raise Rejected('Préciser la date de sortie.')
         if data.get('lastCalving') and data.get('birthDate') and data['lastCalving'] < data['birthDate']:
             raise Rejected('Vêlage antérieur à la naissance de la mère.')
-        import json
         def parent_record(identifier=None, identification=None):
             if identifier:
                 row = db.execute('SELECT data FROM records WHERE kind=? AND id=?', ('animals', identifier)).fetchone()
@@ -117,6 +117,14 @@ def validate(db, kind, data, old):
             raise Rejected('Type d’événement obligatoire.')
         if not data.get('date') and not data.get('dateUnknown'):
             raise Rejected('Date obligatoire, ou date historique inconnue explicite.')
+        if data.get('confirmation') not in (None, 'confirmed', 'uncertain', 'planned'):
+            raise Rejected('Niveau de confirmation invalide.')
+        if data.get('type') in ('Échographie', 'Diagnostic de gestation') and data.get('confirmation') == 'confirmed' and data.get('result') not in ('positive', 'negative', 'uncertain'):
+            raise Rejected('Résultat du diagnostic obligatoire : pleine, vide ou indéterminé.')
+        if data.get('bullId'):
+            bull = db.execute("SELECT data FROM records WHERE kind='animals' AND id=?", (data['bullId'],)).fetchone()
+            if not bull or json.loads(bull['data']).get('sex') != 'M':
+                raise Rejected('Le taureau doit référencer un mâle enregistré.')
         for key in ('milkWithdrawalDays', 'meatWithdrawalDays', 'durationDays'):
             if data.get(key) not in ('', None) and (type(data[key]) is not int or data[key] < 0):
                 raise Rejected(f'{key} doit être un entier positif ou nul.')

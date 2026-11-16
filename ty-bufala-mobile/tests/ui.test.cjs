@@ -8,7 +8,7 @@ test('DOM: login, automatic herd, controls, veterinary event and exact sale',asy
  w.fetch=async(url,options={})=>{const response=await fetch(new URL(url,w.location.href),{...options,headers:{...options.headers,Cookie:cookie}});if(response.headers.get('set-cookie'))cookie=response.headers.get('set-cookie').split(';')[0];return response;};
  w.scrollTo=()=>{};w.confirm=()=>true;w.setInterval=()=>1;w.structuredClone=structuredClone;
  const failures=[];w.addEventListener('error',e=>failures.push(e.message));w.addEventListener('unhandledrejection',e=>failures.push(String(e.reason)));
- w.eval(['sync.js','herd-overview.js','app.js','quality.js','enhancements.js'].map(f=>fs.readFileSync(path.join(base,f),'utf8')).join('\n'));
+ w.eval(['sync.js','herd-overview.js','reproduction.js','app.js','quality.js','enhancements.js'].map(f=>fs.readFileSync(path.join(base,f),'utf8')).join('\n'));
  await wait(()=>w.document.querySelector('#username'),'login');
  w.document.querySelector('#username').value='alice';w.document.querySelector('#password').value='local-test-only-password';w.document.querySelector('#loginForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  await wait(()=>w.document.querySelector('#quickAnimal'),'home');await wait(()=>w.document.querySelector('.stat strong')?.textContent==='1','automatic herd');
@@ -36,6 +36,14 @@ test('DOM: login, automatic herd, controls, veterinary event and exact sale',asy
  await wait(()=>!w.document.querySelector('#editorForm'),'other female saved');
  w.document.querySelector('[data-view="herd"]').click();
  w.document.querySelector('#herdList [data-id="animal_test"]').click();
+ for(const [result,label] of [['positive','Gestation confirmée à cette date'],['negative','Vide au dernier diagnostic']]){
+  w.document.querySelector('[data-quick-event="Échographie"]').click();form=w.document.querySelector('#editorForm');
+  form.querySelector('[name="result"]').value=result;
+  form.querySelector('[name="date"]').value=result==='positive'?'2026-11-01':'2026-11-02';
+  form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(()=>!w.document.querySelector('#editorForm'),'diagnosis saved');
+  assert.equal(w.document.querySelector('[aria-label="Carnet de reproduction"] h2').textContent,label);
+ }
+ assert.equal([...w.document.querySelectorAll('.event-name')].filter(e=>e.textContent.includes('Échographie')).length,2,'both diagnoses stay in timeline');
  w.document.querySelector('#addCalf').click();
  form=w.document.querySelector('#editorForm');
  assert.equal(form.querySelector('[name="motherTag"]').value,'FR0000000001','exact selected mother prefilled');
@@ -48,7 +56,21 @@ test('DOM: login, automatic herd, controls, veterinary event and exact sale',asy
  assert.match(w.document.body.textContent,/FR0000000099/);
  w.document.querySelector('#goMother').click();
  assert.match(w.document.querySelector('h1').textContent,/Animal de test/,'calf links to exact mother, not other female');
- w.document.querySelector('[data-view="home"]').click();
- assert.equal(w.document.querySelector('.stat strong').textContent,'3');
+ for(const [type,category] of [['Tarissement','dry'],['Mise en lactation','lactating']]){
+  w.document.querySelector(`[data-quick-event="${type}"]`).click();form=w.document.querySelector('#editorForm');
+  assert.equal(form.querySelector('[name="type"]').value,type);
+  form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(()=>!w.document.querySelector('#editorForm'),'status saved');
+  w.document.querySelector('[data-view="home"]').click();assert.equal(w.document.querySelector(`[data-herd-category="${category}"] strong`).textContent,'1');
+  w.document.querySelector(`[data-herd-category="${category}"]`).click();w.document.querySelector('#herdList [data-id="animal_test"]').click();
+ }
+ w.document.querySelector('[data-quick-event="Sortie"]').click();form=w.document.querySelector('#editorForm');form.querySelector('[name="description"]').value='Sortie fictive';
+ form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(()=>!w.document.querySelector('#editorForm'),'exit saved');
+ assert.ok(w.document.querySelector('[data-quick-event="Entrée"]'));
+ w.document.querySelector('[data-view="home"]').click();assert.equal(w.document.querySelector('.stat strong').textContent,'2');
+ w.document.querySelector('[data-view="herd"]').click();
+ const categorySelect=w.document.querySelector('#herdCategory');categorySelect.value='';categorySelect.dispatchEvent(new w.Event('change'));
+ const calf=[...w.document.querySelectorAll('#herdList [data-id]')].find(b=>b.textContent.includes('FR0000000099'));assert.ok(calf);calf.click();w.document.querySelector('#goMother').click();
+ w.document.querySelector('[data-quick-event="Entrée"]').click();form=w.document.querySelector('#editorForm');form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(()=>!w.document.querySelector('#editorForm'),'entry saved');
+ w.document.querySelector('[data-view="home"]').click();assert.equal(w.document.querySelector('.stat strong').textContent,'3');
  assert.deepEqual(failures,[]);console.log('DOM checks passed. Layout and real browser/PWA installation remain unverified.');dom.window.close();
 });
