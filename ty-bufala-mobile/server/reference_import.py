@@ -67,6 +67,7 @@ def extract_reference(path):
                 # A unique name remains a PROPOSAL, never a confirmed genealogical link.
                 animal[role + 'CandidateTag'] = candidate
                 animal[role + 'Tag'] = candidate if parent['confirmed'] else ''
+                animal[role + 'Id'] = parent['parent_id'] if parent['confirmed'] and candidate else ''
             animals.append(animal)
         events = []
         for source_row in db.execute('SELECT * FROM animal_events ORDER BY id'):
@@ -77,10 +78,38 @@ def extract_reference(path):
                            'date': row['event_date'] or '', 'dateUnknown': row['date_precision'] == 'unknown',
                            'description': row['description'] or '', 'nextDate': row['next_date'] or '',
                            'source': 'reference-sqlite-v1', 'sourceDigest': digest, 'sourceRow': row['source_row'],
-                           'sourceReference': row})
+                           'sourceReference': row, 'confirmation': 'uncertain'})
+        # Columns from the workbook are evidence, not confirmed clinical acts.
+        derived = 0
+        for animal in animals:
+            for field, event_type, confirmation in (
+                ('lastCalving', 'Vêlage', 'uncertain'),
+                ('matingDate', 'Mise à la reproduction (historique)', 'uncertain'),
+                ('expectedCalving', 'Prévision de vêlage (Excel)', 'planned'),
+                ('weaningDate', 'Sevrage', 'uncertain'),
+            ):
+                if not animal.get(field):
+                    continue
+                events.append({'id': 'reference_date_' + hashlib.sha256((animal['id'] + ':' + field).encode()).hexdigest(),
+                               'animalId': animal['id'], 'type': event_type, 'date': animal[field],
+                               'confirmation': confirmation, 'description': 'Date issue d’une colonne historique ; acte à confirmer.',
+                               'source': 'reference-sqlite-v1', 'sourceDigest': digest, 'sourceRow': animal['sourceRow'],
+                               'sourceReference': {'field': field, 'value': animal[field], 'animalId': animal['id']}})
+                derived += 1
+        # Stable confirmed parents must exist before children are validated.
+        ordered, remaining = [], list(animals)
+        known = set()
+        while remaining:
+            ready = [a for a in remaining if all(not a.get(role+'Id') or a[role+'Id'] in known for role in ('mother','father'))]
+            if not ready:
+                raise ValueError('Filiation confirmée cyclique ou parent absent : import annulé.')
+            ordered.extend(ready)
+            known.update(a['id'] for a in ready)
+            remaining = [a for a in remaining if a['id'] not in known]
+        animals = ordered
         report = {'sourceDigest': digest, 'archiveFormat': 'sqlite-reference-v1', 'animals': len(animals),
                   'present': sum(a['status'] == 'present' for a in animals),
-                  'exited': sum(a['status'] == 'sorti' for a in animals), 'historicalEvents': len(events),
+                  'exited': sum(a['status'] == 'sorti' for a in animals), 'historicalEvents': len(events) - derived, 'derivedDateEvents': derived, 'totalEvents': len(events),
                   'unconfirmedParents': sum(not p['confirmed'] for ps in parents.values() for p in ps),
                   'sourceTableCounts': counts, 'ancillaryData': {}}
         for table in ('farm_notes', 'unresolved_inventory_rows', 'legacy_descendance'):

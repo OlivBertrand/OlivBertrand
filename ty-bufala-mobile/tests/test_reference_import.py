@@ -69,3 +69,27 @@ def test_corrupt_workbook_archive_refuses_import(source):
     db=sqlite3.connect(source);db.execute("UPDATE source_files SET sha256='broken'");db.commit();db.close()
     with pytest.raises(ValueError,match='Archive Excel'):
         extract_reference(source)
+
+
+def test_historical_dates_are_timeline_evidence_not_confirmed_facts(source):
+    db=sqlite3.connect(source)
+    db.execute("UPDATE animals SET last_calving_date='2024-01-01',mating_date='2025-01-01',predicted_calving_date='2025-11-01',weaning_date='2024-08-01' WHERE id='mother'")
+    db.commit();db.close()
+    animals,events,report,_=extract_reference(source)
+    dates=[e for e in events if e['id'].startswith('reference_date_')]
+    assert len(dates)==4 and report['derivedDateEvents']==4 and report['historicalEvents']==1
+    assert {e['confirmation'] for e in dates}=={'uncertain','planned'}
+    assert all(e['sourceReference']['field'] for e in dates)
+    assert len({e['id'] for e in dates})==4
+    assert extract_reference(source)[1]==events
+
+
+def test_full_backup_restores_every_record_receipt_and_source(source,tmp_path):
+    from server.backup import snapshot,restore_empty
+    first=Store(str(tmp_path/'first.db'));first.initialize()
+    import_reference(first,source,{'id':'test-admin','role':'admin'})
+    original=snapshot(first)
+    second=Store(str(tmp_path/'second.db'));second.initialize();restore_empty(second,original)
+    restored=snapshot(second)
+    for key in ('records','history','imports','operations','identities'):
+        assert original[key]==restored[key]
