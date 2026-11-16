@@ -112,7 +112,7 @@ function enforceOfficialPlan(){
     +state.plan?.sichuanLine4!==6 ||
     target.some(t=>{
       const old=oldById.get(t.id);
-      return !old || old.species!==t.species || old.line!==t.line || old.position!==t.position || old.code!==t.code || old.groupCode!==t.groupCode;
+      return !old || old.species!==t.species || old.line!==t.line || old.position!==t.position || old.code!==t.code || old.groupCode!==t.groupCode || old.nickname!==t.nickname || old.nicknameUniverse!==t.nicknameUniverse;
     });
 
   if(!layoutMismatch) return;
