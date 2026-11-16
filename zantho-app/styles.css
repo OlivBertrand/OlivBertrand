@@ -153,3 +153,14 @@
   .plant-primary-actions{grid-template-columns:1fr 1fr}
   .plant-history .timeline-row{grid-template-columns:auto 1fr auto}
 }
+
+
+/* Zantho V0.6.4 — édition et photos */
+.mini-edit{border:0;background:transparent;color:var(--accent);font-size:11px;padding:4px 6px;border-radius:8px;justify-self:end;font-weight:700}
+.mini-edit:active{background:#e7efe8}
+.inline-actions{display:flex;gap:3px;align-items:center;justify-self:end}
+.photo-item{position:relative;min-width:0}
+.photo-open{display:block;width:100%;border:0;background:transparent;padding:0}
+.photo-open img{display:block;width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px}
+.photo-edit{position:absolute;right:5px;bottom:5px;background:rgba(255,255,255,.92);box-shadow:0 1px 5px rgba(0,0,0,.12)}
+@media(max-width:430px){.inline-actions{flex-direction:column;align-items:flex-end}.observation-row,.harvest-session-row{grid-template-columns:auto 1fr auto}.inline-actions{grid-column:3;grid-row:1/3}}
