@@ -159,6 +159,45 @@ def test_persistent_session_survives_app_restart_and_expires_without_password_st
     assert client.get('/api/session').status_code==401
 
 
+def pin_account(app, code='0785'):
+    from server.app import PIN_HASH_PREFIX
+    with app.config['STORE'].transaction(write=True) as db:
+        db.execute('INSERT INTO users(id,name,password,role) VALUES (?,?,?,?)',('pin-test','Synthetic PIN user',PIN_HASH_PREFIX+generate_password_hash(code,method='scrypt'),'editor'))
+
+
+def test_personal_pin_keeps_leading_zero_and_password_accounts(app):
+    pin_account(app)
+    client=app.test_client()
+    assert client.post('/api/login',json={'username':'pin-test','password':'785'}).status_code==401
+    response=client.post('/api/login',json={'username':'pin-test','password':'0785'})
+    assert response.status_code==200 and response.json['user']['id']=='pin-test'
+    assert 'HttpOnly' in response.headers['Set-Cookie']
+    assert client.get('/api/session').status_code==200
+    old,headers=login(app)
+    assert old.get('/api/session').status_code==200
+
+
+def test_personal_pin_lock_survives_new_ips_time_and_server_restart(app,monkeypatch):
+    import time
+    pin_account(app)
+    client=app.test_client()
+    for index in range(5):
+        assert client.post('/api/login',json={'username':'pin-test','password':'9999'},environ_overrides={'REMOTE_ADDR':'192.0.2.'+str(index+1)}).status_code==401
+    later=int(time.time())+31*86400
+    monkeypatch.setattr('server.app.time.time',lambda:later)
+    restarted=create_app(app.config['STORE'].url,testing=True)
+    assert restarted.test_client().post('/api/login',json={'username':'pin-test','password':'0785'},environ_overrides={'REMOTE_ADDR':'192.0.2.200'}).status_code==429
+    import hashlib
+    with restarted.config['STORE'].transaction(write=True) as db:
+        db.execute('DELETE FROM login_attempts WHERE key=?',(hashlib.sha256(b'account:pin-test').hexdigest(),))
+    assert restarted.test_client().post('/api/login',json={'username':'pin-test','password':'0785'}).status_code==200
+
+
+def test_personal_pin_format_never_accepts_a_long_secret(app):
+    pin_account(app,'12345')
+    assert app.test_client().post('/api/login',json={'username':'pin-test','password':'12345'}).status_code==401
+
+
 def test_fail_closed_without_database(monkeypatch):
     monkeypatch.delenv('DATABASE_URL',raising=False)
     app=create_app(testing=True);c=app.test_client()

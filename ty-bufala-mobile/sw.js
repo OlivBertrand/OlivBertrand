@@ -1,4 +1,4 @@
-const CACHE = 'ty-bufala-mobile-v8-field-ui-2';
+const CACHE = 'ty-bufala-mobile-v9-personal-code';
 const ASSETS = ['./','./index.html','./styles.css','./field-ui.css','./ui-kit.js','./app.js','./reproduction.js','./herd-work.js','./sync.js','./quality.js','./enhancements.js','./enhancements.css','./herd-overview.js','./herd-overview.css','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable-512.png'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil((async () => {
