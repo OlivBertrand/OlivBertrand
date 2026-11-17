@@ -34,7 +34,7 @@ async function reload(){for(const name of STORES) state[name]=await dbAll(name);
 async function put(store,record){await putGroup([{kind:store,data:record}]);}
 async function putGroup(records){for(const r of records){if(r.kind==='animals'){const warning=TyBufalaHerdOverview.validateAnimalCategory(r.data,localToday());if(warning)throw new Error(warning);}}const combined=[...state.animals.filter(a=>!records.some(r=>r.kind==='animals'&&r.data.id===a.id)),...records.filter(r=>r.kind==='animals').map(r=>r.data)];for(const r of records){if(r.kind==='animals'&&globalThis.TyBufalaQuality){const result=TyBufalaQuality.validateAnimal(r.data,combined,localToday());if(result.errors.length)throw new Error(result.errors[0].message);}}if(!cloud)throw new Error('Connexion individuelle nécessaire.');await cloud.save(records);await reload();}
 function toast(message){const el=document.getElementById('toast');el.textContent=message;el.hidden=false;clearTimeout(toast.timeout);toast.timeout=setTimeout(()=>el.hidden=true,3600);}
-function nav(view){ui.view=view;ui.animalId=null;document.querySelectorAll('.bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===view));render();window.scrollTo({top:0,behavior:'instant'});}
+function nav(view){ui.view=view;ui.animalId=null;document.querySelectorAll('.bottom-nav button').forEach(b=>b.classList.toggle('active',b.dataset.view===(view==='lots'?'herd':view)));render();window.scrollTo({top:0,behavior:'instant'});}
 function alertDates(){const ids=new Set(activeAnimals().map(a=>a.id));return state.events.filter(e=>!e.cancelled&&ids.has(e.animalId)&&e.nextDate&&dayDiff(e.nextDate)<=30).sort((a,b)=>a.nextDate.localeCompare(b.nextDate));}
 function displayAnimal(a){return a.name?.trim() || a.earTag || 'Animal sans nom';}
 function animalFor(id){return state.animals.find(a=>a.id===id);}
@@ -43,7 +43,7 @@ function render(){if(!sessionUser)return;document.body.classList.toggle('herd-se
  const status=TyBufalaUI.syncStatus({conflict:syncBatches.some(b=>b.blocked),running:cloud?.running,pending:syncBatches.reduce((n,b)=>n+b.operations.length,0),online:navigator.onLine,error:cloud?.error,confirmed:cloud?.confirmed});
  const indicator=document.getElementById('connectionIndicator');indicator.textContent=status.label;indicator.className='connection '+status.tone;indicator.title='Ouvrir les données et la synchronisation';indicator.onclick=()=>nav('data');
  if(ui.view==='herd'&&ui.animalId)return renderAnimalDetail(ui.animalId);
- if(ui.view==='herd')return renderHerd();if(ui.view==='lots')return renderWorkHub();if(ui.view==='sales')return renderSales();if(ui.view==='data')return renderData();return renderHome();}
+ if(ui.view==='herd')return renderHerd();if(ui.view==='lots')return renderAnimalLots();if(ui.view==='sales')return renderSales();if(ui.view==='data')return renderData();return renderHome();}
 function ageShort(birth){if(!birth)return 'âge inconnu';const y=Number(localToday().slice(0,4))-Number(birth.slice(0,4)),m=Number(localToday().slice(5,7))-Number(birth.slice(5,7));let months=y*12+m;if(Number(localToday().slice(8,10))<Number(birth.slice(8,10)))months--;return months<0?'date à vérifier':months<24?`${months} mois`:`${Math.floor(months/12)} an${months>=24?'s':''}`;}
 function plannedChecks(){return activeAnimals().filter(a=>a.sex==='F'&&a.expectedCalving&&(!a.lastCalving||a.lastCalving<a.expectedCalving))
  .map(a=>({animal:a,days:dayDiff(a.expectedCalving)})).filter(x=>x.days>=-180&&x.days<=120).sort((x,y)=>x.days-y.days);}
@@ -82,13 +82,51 @@ function renderHome(){
  app.querySelectorAll('[data-management]').forEach(b=>b.onclick=()=>openManagement(b.dataset.management));
  app.querySelectorAll('[data-reminder]').forEach(b=>b.onclick=()=>{nav('herd');ui.animalId=b.dataset.reminder;render();});
 }
+function animalSections(selected){return '<nav class="animal-sections" aria-label="Vues des animaux"><button id="animalSectionList" class="'+(selected==='animals'?'selected':'')+'" type="button">Animaux</button><button id="animalSectionLots" class="'+(selected==='lots'?'selected':'')+'" type="button">Lots</button></nav>';}
+function bindAnimalSections(){document.getElementById('animalSectionList').onclick=()=>nav('herd');document.getElementById('animalSectionLots').onclick=()=>nav('lots');}
+function renderAnimalLots(){
+ app.innerHTML=animalSections('lots')+`<section class="hero overview-heading"><div><p class="eyebrow">Animaux</p><h1>Lots</h1></div><button class="btn" id="newGroup">＋ Nouveau lot</button></section><input id="lotSearch" type="search" placeholder="Rechercher un lot…" aria-label="Rechercher un lot"><div id="lotCards" class="lot-cards"></div><details class="card"><summary>Tâches et étiquettes</summary><button class="btn secondary small" id="newLabel">＋ Étiquette</button><div id="lotTasks"></div></details>`;
+ bindAnimalSections();document.getElementById('newGroup').onclick=()=>openLotEditor();document.getElementById('newLabel').onclick=()=>openWorkDefinition('labelDefinitions');
+ function draw(){const query=norm(document.getElementById('lotSearch').value),groups=state.herdGroups.filter(g=>norm(g.name).includes(query));
+  document.getElementById('lotCards').innerHTML=groups.map(g=>{const members=state.animals.filter(a=>currentGroup(a.id)?.groupId===g.id),present=members.filter(a=>a.status==='present');return `<article class="lot-card" style="${TyBufalaUI.groupStyle(g)}"><button class="lot-open" data-task-group="${esc(g.id)}"><span class="group-dot"></span><span><strong>${esc(g.name)}</strong><small>${animalCount(present.length)} présent${present.length===1?'':'s'}${members.length>present.length?' · '+(members.length-present.length)+' sortis':''}</small></span><span>›</span></button><div class="lot-card-actions"><button class="btn secondary small" data-members="${esc(g.id)}">Gérer les animaux</button><button class="btn ghost small" data-edit-lot="${esc(g.id)}">Modifier le lot</button></div></article>`;}).join('')||'<div class="empty">'+(query?'Aucun lot correspondant.':'Crée ton premier lot, puis coche les animaux qui le composent.')+'</div>';
+  app.querySelectorAll('[data-task-group]').forEach(b=>b.onclick=()=>{openManagement('');workFilter.group=b.dataset.taskGroup;render();});
+  app.querySelectorAll('[data-edit-lot]').forEach(b=>b.onclick=()=>openLotEditor(b.dataset.editLot));app.querySelectorAll('[data-members]').forEach(b=>b.onclick=()=>openLotMembers(b.dataset.members));
+ }
+ document.getElementById('lotSearch').oninput=draw;draw();
+ const present=new Set(activeAnimals().map(a=>a.id));document.getElementById('lotTasks').innerHTML=state.labelDefinitions.map(d=>({...d,count:new Set(state.animalLabelAssignments.filter(x=>x.labelId===d.id&&!x.completedAt&&present.has(x.animalId)).map(x=>x.animalId)).size})).filter(d=>d.count).map(d=>`<button class="tile" data-task-label="${esc(d.id)}"><strong>${esc(d.name)}</strong><span>${d.count}</span></button>`).join('')||'<p class="help">Aucune tâche active.</p>';
+ app.querySelectorAll('[data-task-label]').forEach(b=>b.onclick=()=>{openManagement('');workFilter.labels=[b.dataset.taskLabel];render();});
+}
+function openLotEditor(id){
+ const group=id?state.herdGroups.find(g=>g.id===id):null,identifier=id||makeID('group');
+ modal(group?'Modifier le lot':'Nouveau lot',`<div class="field"><label>Nom du lot<input name="name" required maxlength="80" value="${esc(group?.name||'')}" placeholder="Prairie, bâtiment…"></label></div><div class="field"><label>Couleur<input name="color" type="color" value="${TyBufalaUI.groupColor(group||{id:identifier})}"></label></div>`,group?'Enregistrer':'Créer',async form=>{
+  const f=new FormData(form),name=String(f.get('name')||'').trim();if(!name)throw new Error('Donne un nom au lot.');if(state.herdGroups.some(g=>g.id!==identifier&&norm(g.name)===norm(name)))throw new Error('Un lot porte déjà ce nom.');
+  if(group){const current=state.herdGroups.find(g=>g.id===id);if(!current||current.revision!==group.revision||current._localRevision!==group._localRevision)throw new Error('Ce lot a changé. Rouvre-le avant de modifier son nom.');}
+  await putGroup([{kind:'herdGroups',data:{...(group||{}),id:identifier,name,color:String(f.get('color'))}}]);toast(group?'Lot modifié.':'Lot créé. Tu peux y ajouter des animaux.');
+ });
+}
+function openLotMembers(id){
+ const group=state.herdGroups.find(g=>g.id===id);if(!group)return;
+ const animals=state.animals.filter(a=>a.status==='present'||currentGroup(a.id)?.groupId===id).sort((a,b)=>displayAnimal(a).localeCompare(displayAnimal(b),'fr'));
+ const fingerprint=a=>a?JSON.stringify([a.id,a.revision,a._localRevision,a.endedAt||'']):'',before=new Map(animals.map(a=>[a.id,fingerprint(currentGroup(a.id))]));
+ const initial=new Set(animals.filter(a=>currentGroup(a.id)?.groupId===id).map(a=>a.id)),chosen=new Set(initial);
+ const m=modal('Animaux · '+group.name,'<input id="memberSearch" type="search" placeholder="Rechercher un animal…" aria-label="Rechercher un animal dans le lot"><p id="memberCount" class="help"></p><div id="memberChoices" class="member-choices"></div>','Enregistrer',async()=>{
+  const changed=animals.filter(a=>chosen.has(a.id)!==initial.has(a.id));
+  for(const a of changed)if(before.get(a.id)!==fingerprint(currentGroup(a.id)))throw new Error('Le lot de '+displayAnimal(a)+' a changé. Rouvre cette liste avant de continuer.');
+  let saved=0;for(let offset=0;offset<changed.length;offset+=25){const part=changed.slice(offset,offset+25),changes=[],at=nowISO();
+   for(const a of part){const old=currentGroup(a.id),adding=chosen.has(a.id);if(old)changes.push({kind:'animalGroupAssignments',data:{...old,endedAt:at}});if(adding)changes.push({kind:'animalGroupAssignments',data:{id:makeID('group_assignment'),animalId:a.id,groupId:id,startedAt:at}});changes.push({kind:'events',data:{id:makeID('event'),animalId:a.id,type:'Changement de lot',date:localToday(),confirmation:'confirmed',groupId:id,description:(adding?'Entrée dans le lot : ':'Retrait du lot : ')+group.name,source:'mobile',createdAt:at}});}
+   try{if(changes.length)await putGroup(changes);saved+=part.length;}catch(error){throw new Error(saved+' changements enregistrés ; '+error.message);}
+  }toast('Composition du lot enregistrée.');
+ });
+ function draw(){const query=norm(document.getElementById('memberSearch').value);document.getElementById('memberCount').textContent=animalCount(chosen.size)+' dans le lot';document.getElementById('memberChoices').innerHTML=animals.filter(a=>norm(displayAnimal(a)+' '+a.earTag).includes(query)).map(a=>`<label class="member-choice"><input type="checkbox" data-member="${esc(a.id)}" ${chosen.has(a.id)?'checked':''}><span><strong>${esc(displayAnimal(a))}</strong><small>${esc(a.earTag)}${currentGroup(a.id)?' · '+esc(groupName(currentGroup(a.id).groupId)):''}${a.status!=='present'?' · Sorti':''}</small></span></label>`).join('');m.form.querySelectorAll('[data-member]').forEach(box=>box.onchange=()=>{box.checked?chosen.add(box.dataset.member):chosen.delete(box.dataset.member);draw();});}
+ document.getElementById('memberSearch').oninput=draw;draw();
+}
 function renderHerd(){
- const chosen=TyBufalaUI.MANAGEMENT_GROUPS.find(g=>g.id===ui.herdCategory);
- app.innerHTML=`<section class="hero overview-heading"><div><p class="eyebrow">Le troupeau</p><h1>${chosen?chosen.label:'Animaux'}</h1></div><button class="btn small" id="addAnimal">＋ Animal</button></section>
- <div class="herd-find"><input id="herdSearch" type="search" placeholder="Rechercher un nom, une boucle…" aria-label="Rechercher un animal" value="${esc(ui.herdSearch)}"><select id="herdStatus" aria-label="Présence">${[['present','Présents'],['sorti','Sortis'],['all','Tous']].map(([id,label])=>`<option value="${id}" ${ui.herdStatus===id?'selected':''}>${label}</option>`).join('')}</select></div>
+ const chosen=TyBufalaUI.MANAGEMENT_GROUPS.find(g=>g.id===ui.herdCategory),activeLot=state.herdGroups.find(g=>g.id===workFilter.group);
+ app.innerHTML=`${animalSections('animals')}<section class="hero overview-heading"><div><p class="eyebrow">Le troupeau</p><h1>${activeLot?esc(activeLot.name):chosen?chosen.label:'Animaux'}</h1></div><button class="btn small" id="addAnimal">＋ Animal</button></section>
+ ${activeLot?'<button class="btn secondary" id="manageCurrentLot">Gérer les animaux de ce lot</button>':''}<div class="herd-find"><input id="herdSearch" type="search" placeholder="Rechercher un nom, une boucle…" aria-label="Rechercher un animal" value="${esc(ui.herdSearch)}"><select id="herdStatus" aria-label="Présence">${[['present','Présents'],['sorti','Sortis'],['all','Tous']].map(([id,label])=>`<option value="${id}" ${ui.herdStatus===id?'selected':''}>${label}</option>`).join('')}</select></div>
  <div class="management-tabs" role="group" aria-label="Classements"><button data-management-filter="" class="${!ui.herdCategory?'selected':''}">Tous</button>${TyBufalaUI.MANAGEMENT_GROUPS.map(g=>`<button data-management-filter="${g.id}" style="${TyBufalaUI.groupStyle(g)}" class="${ui.herdCategory===g.id?'selected':''}">${g.label}</button>`).join('')}</div>
  <div id="herdList" class="list management-list"></div>`;
- document.getElementById('addAnimal').onclick=()=>openAnimalForm();mountHerdWorkFilters();
+ bindAnimalSections();document.getElementById('manageCurrentLot')?.addEventListener('click',()=>openLotMembers(activeLot.id));document.getElementById('addAnimal').onclick=()=>openAnimalForm();mountHerdWorkFilters();
  const manage=document.getElementById('manageWork');manage.closest('section').querySelector('details').append(manage);
  document.getElementById('herdSearch').oninput=e=>{ui.herdSearch=e.target.value;drawHerdList();};
  document.getElementById('herdStatus').onchange=e=>{ui.herdStatus=e.target.value;drawHerdList();};
@@ -131,12 +169,15 @@ function openManagementAssignment(ids){
   finally{buttons.forEach(b=>b.disabled=false);}
  });
 }
-function openHerdInformation(ids){
- const chosen=[...new Set(ids)];modal('Information · '+animalCount(chosen.length),'<div class="field"><label for="quickInfo">Que veux-tu noter ?</label><textarea id="quickInfo" name="description" required maxlength="4000" placeholder="Une observation, un soin, un repère…"></textarea></div><div class="field"><label>Date<input name="date" type="date" value="'+localToday()+'" required></label></div><label><input type="checkbox" name="dateUnknown"> Date historique inconnue</label>','Enregistrer',async form=>{
+function openHerdInformation(ids,existing=null){
+ const chosen=[...new Set(ids)];const editor=modal(existing?'Modifier l’information':'Information · '+animalCount(chosen.length),'<div class="field"><label for="quickInfo">Que veux-tu noter ?</label><textarea id="quickInfo" name="description" required maxlength="4000" placeholder="Une observation, un soin, un repère…"></textarea></div><div class="field"><label>Date<input name="date" type="date" value="'+localToday()+'" required></label></div><label><input type="checkbox" name="dateUnknown"> Date historique inconnue</label>','Enregistrer',async form=>{
   const f=new FormData(form),description=String(f.get('description')||'').trim(),unknown=f.get('dateUnknown')==='on';if(!description)throw new Error('Saisis une information.');let saved=0;
+  if(existing){const current=state.events.find(e=>e.id===existing.id);if(!current||current.cancelled||current.revision!==existing.revision||current._localRevision!==existing._localRevision)throw new Error('Cette information a changé. Rouvre-la avant de la corriger.');await putGroup([{kind:'events',data:{...existing,description,date:unknown?'':String(f.get('date')),dateUnknown:unknown,confirmation:unknown?'uncertain':'confirmed',updatedAt:nowISO()}}]);toast('Information corrigée.');return;}
   for(let offset=0;offset<chosen.length;offset+=25){try{await putGroup(chosen.slice(offset,offset+25).map(id=>{if(!animalFor(id))throw new Error('Animal introuvable.');return {kind:'events',data:{id:makeID('event'),animalId:id,type:'Observation',description,date:unknown?'':String(f.get('date')),dateUnknown:unknown,confirmation:unknown?'uncertain':'confirmed',source:'mobile',createdAt:nowISO()}};}));saved+=chosen.slice(offset,offset+25).length;}catch(error){throw new Error(saved+' enregistré(s) ; '+error.message);}}
   toast('Information enregistrée.');
  });
+ if(existing){editor.form.querySelector('[name="description"]').value=existing.description||'';editor.form.querySelector('[name="date"]').value=existing.date||'';editor.form.querySelector('[name="dateUnknown"]').checked=!!existing.dateUnknown;}
+ const dateInput=editor.form.querySelector('[name="date"]'),unknownInput=editor.form.querySelector('[name="dateUnknown"]');function dateMode(){dateInput.required=!unknownInput.checked;dateInput.disabled=unknownInput.checked;}unknownInput.onchange=dateMode;dateMode();
 }
 function renderAnimalDetail(id){const expanded=app.querySelector('[data-timeline-animal]')?.dataset.timelineAnimal===id?[...app.querySelectorAll('.timeline-card[open]')].map(e=>e.dataset.timelineId):[];const a=animalFor(id);if(!a){ui.animalId=null;return renderHerd();}
  const animalEvents=state.events.filter(x=>x.animalId===id),events=TyBufalaReproduction.timeline(animalEvents,ui.timelineFilter),repro=TyBufalaReproduction.summary(animalEvents,localToday());
@@ -166,8 +207,8 @@ function renderAnimalDetail(id){const expanded=app.querySelector('[data-timeline
  app.querySelectorAll('[data-proposed-parent]').forEach(b=>b.onclick=()=>{ui.animalId=b.dataset.proposedParent;render();});app.querySelectorAll('[data-confirm-parent]').forEach(b=>b.onclick=()=>confirmMobileParent(a,animalFor(b.dataset.confirmParent),b.dataset.parentKind));
  app.querySelectorAll('[data-child]').forEach(b=>b.onclick=()=>{ui.animalId=b.dataset.child;render();});
  app.querySelectorAll('[data-quick-event]').forEach(b=>b.onclick=()=>openEventForm(a.id,null,b.dataset.quickEvent));
- app.querySelectorAll('[data-cancel-event]').forEach(b=>b.onclick=async()=>{try{const event=animalEvents.find(e=>e.id===b.dataset.cancelEvent);if(event){await cancelAnimalEvent(event);render();}}catch(error){toast(error.message);}});
- app.querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>openEventForm(a.id,b.dataset.event));}
+ app.querySelectorAll('[data-cancel-event]').forEach(b=>b.onclick=async()=>{try{const event=animalEvents.find(e=>e.id===b.dataset.cancelEvent);if(event){if(event.type==='Observation'){if(!confirm('Retirer cette information ? Sa trace restera dans l’historique.'))return;await putGroup([{kind:'events',data:{...event,cancelled:true,cancelledAt:nowISO()}}]);}else await cancelAnimalEvent(event);render();}}catch(error){toast(error.message);}});
+ app.querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>{const event=animalEvents.find(e=>e.id===b.dataset.event);if(event?.type==='Observation')openHerdInformation([a.id],event);else openEventForm(a.id,b.dataset.event);});}
 function modal(title,content,saveLabel,handler){modalRoot.innerHTML=`<div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="modal-top"><h2 id="modalTitle">${esc(title)}</h2><button type="button" class="close" aria-label="Fermer">×</button></div><form id="editorForm" class="form-stack">${content}<div class="modal-actions"><button type="button" class="btn secondary" id="cancelModal">Annuler</button><button type="submit" class="btn">${esc(saveLabel)}</button></div></form></section></div>`;
  document.body.style.overflow='hidden';const close=()=>{modalRoot.innerHTML='';document.body.style.overflow='';};modalRoot.querySelector('.close').onclick=close;modalRoot.querySelector('#cancelModal').onclick=close;
  modalRoot.querySelector('.modal-backdrop').addEventListener('click',e=>{if(e.target.classList.contains('modal-backdrop'))close();});

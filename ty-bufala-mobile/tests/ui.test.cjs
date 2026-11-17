@@ -12,13 +12,13 @@ test('DOM: five lots, direct collective classification, exact mother, history an
  const value=(name,v)=>{const e=w.document.querySelector('#editorForm [name="'+name+'"]');assert.ok(e,'field '+name);e.value=v;};
  const submit=async()=>{w.document.querySelector('#editorForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await wait(()=>!w.document.querySelector('#editorForm'),'form saved');};
  const goMore=async()=>{click('[data-view="data"]');await wait(()=>w.document.querySelector('#moreLots'),'more');};
- const goLots=async()=>{await goMore();click('#moreLots');};
+ const goLots=async()=>{click('[data-view="herd"]');click('#animalSectionLots');assert.ok(w.document.querySelector('[data-view="herd"]').classList.contains('active'));assert.ok(w.document.querySelector('#animalSectionLots').classList.contains('selected'));};
  try{
  w.eval(['sync.js','ui-kit.js','herd-overview.js','reproduction.js','herd-work.js','app.js','quality.js','enhancements.js'].map(f=>fs.readFileSync(path.join(base,f),'utf8')).join('\n'));
  await wait(()=>w.document.querySelector('#username'),'login');w.document.querySelector('#username').value='alice';w.document.querySelector('#password').value='local-test-only-password';
  w.document.querySelector('#loginForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  await wait(()=>w.document.querySelector('.home-count strong')?.textContent==='1','automatic herd');
- assert.equal(w.document.querySelectorAll('.bottom-nav button').length,3);
+ assert.equal(w.document.querySelectorAll('.bottom-nav button').length,3);assert.equal(w.document.querySelector('.bottom-nav [data-view="lots"]'),null);
  assert.deepEqual([...w.document.querySelectorAll('.management-name')].map(e=>e.textContent),['En lactation','Taries','Génisses','Mâles','Taureaux']);
  assert.ok(!/Jeunes mâles|Autres mâles adultes|Femelles à préciser|Bufflonnes à classer/.test(w.document.querySelector('#app').textContent));
  click('#classifyNow');assert.equal(w.document.querySelectorAll('#herdList [data-id]').length,1);
@@ -27,6 +27,10 @@ test('DOM: five lots, direct collective classification, exact mother, history an
  click('[data-management="lactating"]');click('[data-id="animal_test"]');assert.match(w.document.querySelector('.group-chip').textContent,/En lactation/);
  click('#animalInformation');value('description','TEST ONLY observation simple');await submit();
  assert.match(w.document.querySelector('.animal-timeline').textContent,/TEST ONLY observation simple/);
+ const information=[...w.document.querySelectorAll('.timeline-card')].find(e=>e.textContent.includes('TEST ONLY observation simple')),informationId=information.dataset.timelineId;
+ information.querySelector('[data-event]').click();assert.equal(w.document.querySelector('#editorForm [name="type"]'),null,'information opens a short form');value('description','TEST ONLY information corrected');await submit();
+ const corrected=w.document.querySelector('[data-timeline-id="'+informationId+'"]');assert.match(corrected.textContent,/information corrected/);assert.equal(corrected.querySelector('[data-cancel-event]').textContent,'Retirer');corrected.querySelector('[data-cancel-event]').click();await wait(()=>!w.document.querySelector('[data-timeline-id="'+informationId+'"]'),'information removed from current timeline');assert.match(w.document.querySelector('#app').textContent,/Observation.*annulé/);
+
  click('[data-quick-event="Échographie"]');value('result','positive');await submit();
  assert.match(w.document.querySelector('[aria-label="Carnet de reproduction"] h2').textContent,/Gestation confirmée/);
  const diagnosis=[...w.document.querySelectorAll('.timeline-card')].find(e=>e.textContent.includes('Échographie'));assert.ok(diagnosis);diagnosis.open=true;diagnosis.querySelector('[data-event]').click();value('result','negative');await submit();assert.match(w.document.querySelector('[aria-label="Carnet de reproduction"] h2').textContent,/Vide/);
@@ -49,6 +53,11 @@ test('DOM: five lots, direct collective classification, exact mother, history an
  click('#bulkInformation');value('description','TEST ONLY collective note');await submit();
  click('#bulkMore');click('[data-bulk-action="label"]');value('newName','À échographier');await submit();
  await goLots();assert.match(w.document.querySelector('[data-task-label]').textContent,/3/);assert.ok(w.document.querySelector('[data-task-group]'));
+ const groupId=w.document.querySelector('[data-task-group]').dataset.taskGroup;click('[data-edit-lot="'+groupId+'"]');value('name','TEST ONLY Meadow amended');value('color','#477e91');await submit();assert.match(w.document.querySelector('[data-task-group="'+groupId+'"]').textContent,/Meadow amended/);
+ click('[data-members="'+groupId+'"]');const member=w.document.querySelector('[data-member]:checked'),memberId=member.dataset.member;member.click();await submit();assert.match(w.document.querySelector('[data-task-group="'+groupId+'"]').textContent,/2 animaux/);
+ click('[data-task-group="'+groupId+'"]');assert.equal(w.document.querySelectorAll('#herdList [data-id]').length,2,'lot composition updated without editing animal classifications');click('#manageCurrentLot');click('[data-member="'+memberId+'"]');await submit();assert.equal(w.document.querySelectorAll('#herdList [data-id]').length,3);
+ await goLots();click('#newGroup');value('name','TEST ONLY new empty lot');value('color','#8b6aa4');await submit();assert.equal(w.document.querySelectorAll('[data-task-group]').length,2,'standalone lot creation');
+
  click('[data-view="herd"]');click('[data-id]');click('[data-quick-event="Échographie"]');value('date','2027-01-01');value('result','positive');await submit();
  await goLots();assert.match(w.document.querySelector('[data-task-label]').textContent,/3/,'a future diagnosis does not complete a current task');
 

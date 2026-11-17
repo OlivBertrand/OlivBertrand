@@ -51,3 +51,5 @@ test('invalid mixed selections are rejected before any plan can be applied',()=>
  assert.equal(plan[0].data.lastCalving,undefined);
  assert.throws(()=>ui.classificationPlan([a],[{animalId:'a',type:'Vêlage',confirmation:'confirmed'}],['a'],'heifer','2026-11-17'),/vêlage/);
 });
+
+test('information offers removal while clinical events retain cancellation',()=>{assert.match(ui.timeline([{id:'test-note',type:'Observation',confirmation:'confirmed',date:'2026-11-17'}]),/>Retirer<\/button>/);assert.match(ui.timeline([{id:'test-care',type:'Traitement',confirmation:'confirmed',date:'2026-11-17'}]),/>Annuler<\/button>/);});
