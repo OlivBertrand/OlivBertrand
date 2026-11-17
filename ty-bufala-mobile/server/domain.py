@@ -167,6 +167,8 @@ def validate(db, kind, data, old):
             raise Rejected('Date de vente obligatoire.')
         total = 0
         for line in data['lines']:
+            from .sales_catalogue import bind_line
+            bind_line(db, line)
             qty, price = line.get('quantityMilli'), line.get('unitPriceCents')
             if type(qty) is not int or type(price) is not int or not 0 < qty <= 10**9 or not 0 <= price <= 10**9:
                 raise Rejected('Quantité ou prix invalide.')
@@ -184,7 +186,7 @@ def validate(db, kind, data, old):
         if total > 10**12:
             raise Rejected('Montant total trop élevé.')
         data['totalCents'] = total
-        # Only a verified Windows bridge may acknowledge integration. None is enabled yet.
+        # Receipt is separate metadata, never trusted from phone-editable fields.
         data['syncState'] = 'pending'
         data.pop('windowsReceipt', None)
     if old:

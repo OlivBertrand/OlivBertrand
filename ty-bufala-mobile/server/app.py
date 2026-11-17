@@ -209,6 +209,24 @@ def create_app(database_url=None, testing=False):
             rows = db.execute('SELECT * FROM changes WHERE kind=? AND record_id=? ORDER BY seq', (kind, record_id)).fetchall()
         return jsonify(history=[public_record(r) for r in rows])
 
+    @app.route('/api/sales-catalogue', methods=['GET','POST'])
+    @authenticated
+    def sales_catalogue():
+        from .sales_catalogue import read_catalogue, publish
+        if request.method=='POST':
+            if g.user['role']!='admin':raise Rejected('Publication réservée au compte Windows administrateur.',403)
+            return jsonify(publish(store,request.get_json(silent=True)))
+        with store.transaction() as db:return jsonify(read_catalogue(db))
+
+    @app.route('/api/windows-sales-receipts', methods=['GET','POST'])
+    @authenticated
+    def windows_sales_receipts():
+        from .sales_catalogue import read_receipts, acknowledge
+        if request.method=='POST':
+            if g.user['role']!='admin':raise Rejected('Accusés réservés au compte Windows administrateur.',403)
+            return jsonify(acknowledge(store,request.get_json(silent=True)))
+        with store.transaction() as db:return jsonify(receipts=read_receipts(db))
+
     @app.get('/api/windows-staging')
     @authenticated
     def windows_staging():

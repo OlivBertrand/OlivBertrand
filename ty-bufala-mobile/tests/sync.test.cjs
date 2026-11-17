@@ -82,3 +82,22 @@ test('incomplete receipts never remove an offline batch',async()=>{
  const batch=(await a.all('outbox'))[0];await assert.rejects(a.accept(batch,[]),/Accusés incomplets/);
  assert.equal((await a.all('outbox')).length,1);online=true;await a.run();assert.equal((await a.all('outbox')).length,0);
 });
+test('offline catalogue sale keeps Windows identity through local restart and replay',async()=>{
+ const phone=await device('suzanna');await phone.run();
+ const catalogue=(await phone.all('meta')).find(x=>x.id==='salesCatalogue').value;
+ const product=catalogue.products.find(p=>p.ready);assert.ok(product);
+ online=false;
+ try{
+  await phone.save([{kind:'sales',data:{id:'sale_offline_catalogue',date:'2026-11-17',channel:'À la ferme',paymentMethod:'Espèces',
+   lines:[{catalogueId:product.id,catalogueVersion:catalogue.version,catalogueSource:catalogue.sourceId,productId:product.productId,
+    product:product.name,unit:product.unit,vatRate:product.vatRate,quantityMilli:2000,unitPriceCents:505,totalCents:1010}]}}]);
+  assert.equal((await phone.all('sales')).find(s=>s.id==='sale_offline_catalogue')._sync,'pending');
+  const restarted=new CloudSync(phone.db,phone.user,phone.csrf);restarted.request=phone.request.bind(phone);
+  online=true;await restarted.run();assert.equal(restarted.error,'');
+  const received=(await restarted.all('sales')).find(s=>s.id==='sale_offline_catalogue');
+  assert.equal(received._sync,'shared');assert.equal(received.syncState,'pending');assert.equal(received.totalCents,1010);
+  assert.equal(received.lines[0].catalogueId,product.id);assert.equal(received.lines[0].productId,product.productId);
+  assert.equal(received.lines[0].netCents+received.lines[0].vatCents,1010);
+  await restarted.run();assert.equal((await restarted.all('sales')).filter(s=>s.id==='sale_offline_catalogue').length,1);
+ }finally{online=true;}
+});

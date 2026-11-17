@@ -18,7 +18,7 @@ test('DOM: five lots, direct collective classification, exact mother, history an
  await wait(()=>w.document.querySelector('#username'),'login');w.document.querySelector('#username').value='alice';w.document.querySelector('#password').value='local-test-only-password';
  w.document.querySelector('#loginForm').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
  await wait(()=>w.document.querySelector('.home-count strong')?.textContent==='1','automatic herd');
- assert.equal(w.document.querySelectorAll('.bottom-nav button').length,3);assert.equal(w.document.querySelector('.bottom-nav [data-view="lots"]'),null);
+ assert.equal(w.document.querySelectorAll('.bottom-nav button').length,4);assert.ok(w.document.querySelector('.bottom-nav [data-view="sales"]'));assert.equal(w.document.querySelector('.bottom-nav [data-view="lots"]'),null);
  assert.deepEqual([...w.document.querySelectorAll('.management-name')].map(e=>e.textContent),['En lactation','Taries','Génisses','Mâles','Taureaux']);
  assert.ok(!/Jeunes mâles|Autres mâles adultes|Femelles à préciser|Bufflonnes à classer/.test(w.document.querySelector('#app').textContent));
  click('#classifyNow');assert.equal(w.document.querySelectorAll('#herdList [data-id]').length,1);
@@ -71,7 +71,7 @@ test('DOM: five lots, direct collective classification, exact mother, history an
  const motherSearch=w.document.querySelector('#motherSearch');motherSearch.value='eglantine';motherSearch.dispatchEvent(new w.Event('input'));
  assert.equal(w.document.querySelectorAll('#aMother option').length,3,'accent-insensitive exact-mother list keeps both homonyms');click('#cancelModal');
  await goMore();click('#openQuality');assert.equal(w.document.querySelector('h1').textContent,'Contrôles du cheptel');
- await goMore();click('#moreSales');click('#addSale');value('product','TEST ONLY cheese');value('price','5,05');value('quantity','0,333');await submit();assert.match(w.document.querySelector('#salesList').textContent,/1,68/);
+ click('[data-view="sales"]');click('#addSale');value('product','PRODUCT:1');w.document.querySelector('[name="product"]').dispatchEvent(new w.Event('change',{bubbles:true}));value('price','5,05');value('quantity','0,333');await submit();assert.match(w.document.querySelector('#salesList').textContent,/1,68/);
  await goMore();click('#syncNow');await wait(()=>w.document.querySelector('#connectionIndicator').textContent==='À jour','automatic receipts');
  assert.deepEqual(failures,[]);
  }finally{dom.window.close();}
