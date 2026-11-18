@@ -42,6 +42,26 @@ def test_product_reference_vat_and_archive_for_offline_sale(app):
     assert line['netCents']==10000 and line['vatCents']==2000 and line['cashFamily']=='Divers'
 
 
+def test_unlinked_amount_catalogue_and_sale_keep_nullable_product_and_exact_vat(app):
+    a,h=login(app);value=catalogue();p=value['products'][0]
+    p.update(id='CATALOG:viande',productId=None,itemCode='viande',name='VIANDE FICTIVE',unit='vente',inputMode='amount',vatRate=5.5,cashFamily='VENTES DE BUFFLONS (VIANDE)',unitPriceCents=None)
+    value['version']=fingerprint({k:v for k,v in value.items() if k!='version'})
+    assert a.post('/api/sales-catalogue',json=value,headers=h).status_code==200
+    data=sale(value);data['lines'][0].update(productId=None,vatRate=5.5,unitPriceCents=10550,totalCents=10550)
+    bad=copy.deepcopy(data);bad['lines'][0].update(quantityMilli=2000,totalCents=21100)
+    assert push(a,h,[op(bad,id='bad_amount_quantity',kind='sales')]).status_code==422
+    response=push(a,h,[op(data,kind='sales')]);assert response.status_code==200
+    line=response.json['receipts'][0]['data']['lines'][0]
+    assert line['productId'] is None and line['inputMode']=='amount'
+    assert line['netCents']==10000 and line['vatCents']==550
+
+
+def test_null_product_master_requires_a_real_catalogue_identity(app):
+    a,h=login(app);value=catalogue();value['products'][0]['productId']=None
+    value['version']=fingerprint({k:v for k,v in value.items() if k!='version'})
+    assert a.post('/api/sales-catalogue',json=value,headers=h).status_code==422
+
+
 def test_receipt_revision_permission_and_complete_restore(app,tmp_path):
     a,h=login(app);b,bh=login(app,'suzanna');value=catalogue();publish(app.config['STORE'],value)
     record=push(a,h,[op(sale(value),kind='sales')]).json['receipts'][0]['data']

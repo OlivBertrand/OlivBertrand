@@ -72,6 +72,9 @@ test('DOM: five lots, direct collective classification, exact mother, history an
  assert.equal(w.document.querySelectorAll('#aMother option').length,3,'accent-insensitive exact-mother list keeps both homonyms');click('#cancelModal');
  await goMore();click('#openQuality');assert.equal(w.document.querySelector('h1').textContent,'Contrôles du cheptel');
  click('[data-view="sales"]');click('#addSale');value('product','PRODUCT:1');w.document.querySelector('[name="product"]').dispatchEvent(new w.Event('change',{bubbles:true}));value('price','5,05');value('quantity','0,333');await submit();assert.match(w.document.querySelector('#salesList').textContent,/1,68/);
+ click('#addSale');value('product','CATALOG:viande');w.document.querySelector('[name=product]').dispatchEvent(new w.Event('change',{bubbles:true}));
+ assert.equal(w.document.querySelector('[name=quantity]').disabled,true);assert.equal(w.document.querySelector('[name=price]').previousElementSibling.textContent,'Montant TTC (€) *');assert.equal(w.document.querySelector('[name=price]').value,'');
+ value('price','105,50');await submit();assert.match(w.document.querySelector('#salesList').textContent,/105,50/);
  await goMore();click('#syncNow');await wait(()=>w.document.querySelector('#connectionIndicator').textContent==='À jour','automatic receipts');
  assert.deepEqual(failures,[]);
  }finally{dom.window.close();}

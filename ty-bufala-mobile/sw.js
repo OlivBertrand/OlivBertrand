@@ -1,4 +1,4 @@
-const CACHE = 'ty-bufala-mobile-v13-sales-windows-catalogue';
+const CACHE = 'ty-bufala-mobile-v14-sales-meat-catalogue';
 const ASSETS = ['./','./index.html','./styles.css','./field-ui.css','./ui-kit.js','./app.js','./reproduction.js','./herd-work.js','./sync.js','./quality.js','./enhancements.js','./enhancements.css','./herd-overview.js','./herd-overview.css','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable-512.png'];
 self.addEventListener('install', event => event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(ASSETS)).then(() => self.skipWaiting())));
 self.addEventListener('activate', event => event.waitUntil((async () => {

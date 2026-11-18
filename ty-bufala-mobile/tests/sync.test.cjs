@@ -85,7 +85,7 @@ test('incomplete receipts never remove an offline batch',async()=>{
 test('offline catalogue sale keeps Windows identity through local restart and replay',async()=>{
  const phone=await device('suzanna');await phone.run();
  const catalogue=(await phone.all('meta')).find(x=>x.id==='salesCatalogue').value;
- const product=catalogue.products.find(p=>p.ready);assert.ok(product);
+ const product=catalogue.products.find(p=>p.ready&&p.inputMode!=='amount');assert.ok(product);
  online=false;
  try{
   await phone.save([{kind:'sales',data:{id:'sale_offline_catalogue',date:'2026-11-17',channel:'À la ferme',paymentMethod:'Espèces',

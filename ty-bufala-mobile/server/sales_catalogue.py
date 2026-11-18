@@ -26,14 +26,14 @@ def publish(store, value):
     if not isinstance(products,list) or len(products)>5000:raise Rejected('Catalogue trop volumineux.')
     identifiers=set()
     for p in products:
-        if not isinstance(p,dict) or set(p)!={'id','productId','itemCode','name','unit','vatRate','cashFamily','unitPriceCents','bleezCode','categoryId','ready'}:
+        if not isinstance(p,dict) or set(p)-{'inputMode'}!={'id','productId','itemCode','name','unit','vatRate','cashFamily','unitPriceCents','bleezCode','categoryId','ready'}:
             raise Rejected('Fiche produit invalide.')
         if not isinstance(p['id'],str) or not re.fullmatch(r'(PRODUCT:[0-9]+|CATALOG:[A-Za-z0-9_.-]{1,120})',p['id']) or p['id'] in identifiers:
             raise Rejected('Référence produit invalide ou dupliquée.')
         identifiers.add(p['id'])
-        if type(p['productId']) is not int or p['productId']<1 or not isinstance(p['name'],str) or not 1<=len(p['name'])<=180:
+        if not (p['productId'] is None and p['itemCode'] is not None or type(p['productId']) is int and p['productId']>0) or not isinstance(p['name'],str) or not 1<=len(p['name'])<=180:
             raise Rejected('Produit Windows invalide.')
-        if p['unit'] not in ('pièce','kg') or p['vatRate'] not in (None,0,2.1,5.5,10,20) or type(p['vatRate']) is bool:
+        if p.get('inputMode','qty') not in ('qty','amount') or p['unit'] not in (('vente',) if p.get('inputMode')=='amount' else ('pièce','kg')) or p['vatRate'] not in (None,0,2.1,5.5,10,20) or type(p['vatRate']) is bool:
             raise Rejected('Unité ou TVA invalide.')
         if p['cashFamily'] not in (None,*FAMILIES) or type(p['ready']) is not bool or p['ready']!=(p['vatRate'] is not None and p['cashFamily'] in FAMILIES):
             raise Rejected('Affectation caisse Bleez invalide.')
@@ -70,10 +70,13 @@ def bind_line(db,line):
     if not row:raise Rejected('Catalogue source inconnu. Synchroniser la liste des produits.')
     catalogue=json.loads(row['value']);entry=next((p for p in catalogue['products'] if p['id']==line.get('catalogueId')),None)
     if not entry or not entry['ready']:raise Rejected('Produit non prêt : compléter sa TVA et son classement dans Windows.')
-    if type(line.get('productId')) is not int or type(line.get('vatRate')) is bool:raise Rejected('Référence ou taux de TVA invalide.')
+    if (line.get('productId') is not None and type(line['productId']) is not int) or type(line.get('vatRate')) is bool:raise Rejected('Référence ou taux de TVA invalide.')
     if line.get('catalogueSource')!=catalogue['sourceId'] or any(line.get(k)!=entry[v] for k,v in (('productId','productId'),('product','name'),('vatRate','vatRate'),('unit','unit'))):
         raise Rejected('Référence produit ou TVA différente du catalogue Windows.')
     line['cashFamily']=entry['cashFamily']
+    if entry.get('inputMode','qty')=='amount' and (type(line.get('quantityMilli')) is not int or line['quantityMilli']!=1000):
+        raise Rejected('Saisir un montant TTC unique pour ce produit.')
+    line['inputMode']=entry.get('inputMode','qty')
 
 
 def read_receipts(db):
