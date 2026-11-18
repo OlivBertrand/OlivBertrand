@@ -6,29 +6,33 @@
   <meta name="theme-color" content="#274b58">
   <meta name="description" content="Ty Bufala Mobile — suivi du cheptel et ventes ponctuelles, utilisable hors ligne.">
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Ty Bufala">
   <title>Ty Bufala Mobile</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="enhancements.css">
   <link rel="stylesheet" href="herd-overview.css">
+  <link rel="stylesheet" href="field-ui.css">
 </head>
 <body>
   <header class="topbar">
     <div class="brand-lockup"><img class="brand-logo" src="icon-192.png" alt="Logo Ty Bufala"><div><div class="brand">TY BUFALA <span>MOBILE</span></div><div class="subbrand">Cheptel & ventes</div></div></div>
-    <div id="connectionIndicator" class="connection" role="status">Local</div>
+    <button type="button" id="connectionIndicator" class="connection" aria-live="polite">Connexion…</button>
   </header>
   <main id="app"><section class="card"><p>Chargement de l’application…</p></section></main>
   <nav class="bottom-nav" aria-label="Navigation principale">
-    <button data-view="home" class="active"><span aria-hidden="true">⌂</span>Accueil</button>
-    <button data-view="herd"><span aria-hidden="true">♧</span>Cheptel</button>
+    <button data-view="home" class="active"><span aria-hidden="true">▦</span>Vue d’ensemble</button>
+    <button data-view="herd"><span aria-hidden="true">♧</span>Animaux</button>
     <button data-view="sales"><span aria-hidden="true">€</span>Ventes</button>
-    <button data-view="quality"><span aria-hidden="true">✓</span>Contrôles</button>
-    <button data-view="data"><span aria-hidden="true">⇅</span>Données</button>
+    <button data-view="data"><span aria-hidden="true">⋯</span>Plus</button>
   </nav>
   <div id="modalRoot"></div>
   <div id="toast" class="toast" aria-live="polite" hidden></div>
   <script defer src="sync.js"></script>
+  <script defer src="ui-kit.js"></script>
   <script defer src="herd-overview.js"></script>
   <script defer src="reproduction.js"></script>
   <script defer src="herd-work.js"></script>

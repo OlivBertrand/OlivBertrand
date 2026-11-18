@@ -12,9 +12,12 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from .store import Store
 from .domain import Rejected, apply_operations, public_record, KINDS
 
-ASSETS = {'index.html', 'styles.css', 'app.js', 'sync.js', 'sw.js', 'manifest.webmanifest',
+ASSETS = {'index.html', 'styles.css', 'field-ui.css', 'ui-kit.js', 'app.js', 'sync.js', 'sw.js', 'manifest.webmanifest',
           'quality.js', 'reproduction.js', 'herd-work.js', 'enhancements.js', 'enhancements.css', 'herd-overview.js', 'herd-overview.css', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png'}
 DUMMY_HASH = generate_password_hash('not-a-user-password', method='scrypt')
+SESSION_LIFETIME = 30 * 86400
+PIN_HASH_PREFIX = 'pin-v1$'
+PIN_FAILURE_LIMIT = 5
 
 
 def create_app(database_url=None, testing=False):
@@ -66,7 +69,7 @@ def create_app(database_url=None, testing=False):
             raw = request.cookies.get('tb_session', '')
             token = hashlib.sha256(raw.encode()).hexdigest()
             with store.transaction() as db:
-                row = db.execute('SELECT s.csrf,u.id,u.name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires>? AND u.active=1', (token, int(time.time()))).fetchone()
+                row = db.execute('SELECT s.csrf,s.expires,u.id,u.name,u.role FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token=? AND s.expires>? AND u.active=1', (token, int(time.time()))).fetchone()
             if not row:
                 raise Rejected('Connexion individuelle nécessaire.', 401)
             if request.method != 'GET' and not secrets.compare_digest(request.headers.get('X-CSRF-Token', ''), row['csrf']):
@@ -100,17 +103,25 @@ def create_app(database_url=None, testing=False):
         now = int(time.time())
         with store.transaction(write=True) as db:
             store.lock(db)
-            for key in keys:
-                attempt = db.execute('SELECT * FROM login_attempts WHERE key=?', (key,)).fetchone()
-                if attempt and attempt['failures'] >= 10 and attempt['until_time'] > now:
-                    raise Rejected('Trop de tentatives. Réessayer dans 15 minutes.', 429)
             row = db.execute('SELECT * FROM users WHERE id=? AND active=1', (username,)).fetchone()
-            valid = check_password_hash(row['password'] if row else DUMMY_HASH, password)
+            stored_hash = row['password'] if row else DUMMY_HASH
+            uses_pin = stored_hash.startswith(PIN_HASH_PREFIX)
+            for index, key in enumerate(keys):
+                attempt = db.execute('SELECT * FROM login_attempts WHERE key=?', (key,)).fetchone()
+                limit = PIN_FAILURE_LIMIT if uses_pin and index == 0 else 10
+                if attempt and attempt['failures'] >= limit and attempt['until_time'] > now:
+                    raise Rejected('Trop de tentatives. Le code personnel doit être réactivé par l’administrateur.' if uses_pin and index == 0 else 'Trop de tentatives. Réessayer dans 15 minutes.', 429)
+            valid = check_password_hash(stored_hash[len(PIN_HASH_PREFIX):] if uses_pin else stored_hash, password)
+            if uses_pin and (len(password) != 4 or not password.isascii() or not password.isdecimal()):
+                valid = False
             if not row or not valid:
-                for key in keys:
+                for index, key in enumerate(keys):
                     old = db.execute('SELECT * FROM login_attempts WHERE key=?', (key,)).fetchone()
                     count = old['failures'] + 1 if old and old['until_time'] > now else 1
-                    db.execute('INSERT INTO login_attempts(key,failures,until_time) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET failures=excluded.failures,until_time=excluded.until_time', (key, count, now + 900))
+                    # A four-digit code cannot use the password's 15-minute reset.
+                    # Its account counter persists until an operator reactivates it.
+                    until = 9223372036854775807 if uses_pin and index == 0 else now + 900
+                    db.execute('INSERT INTO login_attempts(key,failures,until_time) VALUES (?,?,?) ON CONFLICT(key) DO UPDATE SET failures=excluded.failures,until_time=excluded.until_time', (key, count, until))
                 failed = True
             else:
                 failed = False
@@ -118,17 +129,29 @@ def create_app(database_url=None, testing=False):
                     db.execute('DELETE FROM login_attempts WHERE key=?', (key,))
                 token, csrf = secrets.token_urlsafe(48), secrets.token_urlsafe(32)
                 db.execute('DELETE FROM sessions WHERE expires<=?', (now,))
-                db.execute('INSERT INTO sessions(token,user_id,csrf,expires) VALUES (?,?,?,?)', (hashlib.sha256(token.encode()).hexdigest(), username, csrf, now + 7 * 86400))
+                db.execute('INSERT INTO sessions(token,user_id,csrf,expires) VALUES (?,?,?,?)', (hashlib.sha256(token.encode()).hexdigest(), username, csrf, now + SESSION_LIFETIME))
         if failed:
             raise Rejected('Identifiants invalides.', 401)
         response = jsonify(user={'id': username, 'name': row['name'], 'role': row['role']}, csrf=csrf)
-        response.set_cookie('tb_session', token, secure=not testing, httponly=True, samesite='Strict', max_age=7 * 86400, path='/')
+        response.set_cookie('tb_session', token, secure=not testing, httponly=True, samesite='Strict', max_age=SESSION_LIFETIME, path='/')
         return response
 
     @app.get('/api/session')
     @authenticated
     def session():
-        return jsonify(user={k: g.user[k] for k in ('id', 'name', 'role')}, csrf=g.user['csrf'])
+        response = jsonify(user={k: g.user[k] for k in ('id', 'name', 'role')}, csrf=g.user['csrf'])
+        now = int(time.time())
+        # Renew only near expiry, avoiding a remote journal write at every poll.
+        # An expired/revoked session always fails authentication before this path.
+        if g.user['expires'] < now + 7 * 86400:
+            raw = request.cookies['tb_session']
+            with store.transaction(write=True) as db:
+                changed = db.execute('UPDATE sessions SET expires=? WHERE token=? AND expires>? AND user_id IN (SELECT id FROM users WHERE active=1)',
+                                     (now + SESSION_LIFETIME, hashlib.sha256(raw.encode()).hexdigest(), now))
+                if changed.rowcount != 1:
+                    raise Rejected('Connexion individuelle nécessaire.', 401)
+            response.set_cookie('tb_session', raw, secure=not testing, httponly=True, samesite='Strict', max_age=SESSION_LIFETIME, path='/')
+        return response
 
     @app.post('/api/logout')
     @authenticated
@@ -185,6 +208,24 @@ def create_app(database_url=None, testing=False):
         with store.transaction() as db:
             rows = db.execute('SELECT * FROM changes WHERE kind=? AND record_id=? ORDER BY seq', (kind, record_id)).fetchall()
         return jsonify(history=[public_record(r) for r in rows])
+
+    @app.route('/api/sales-catalogue', methods=['GET','POST'])
+    @authenticated
+    def sales_catalogue():
+        from .sales_catalogue import read_catalogue, publish
+        if request.method=='POST':
+            if g.user['role']!='admin':raise Rejected('Publication réservée au compte Windows administrateur.',403)
+            return jsonify(publish(store,request.get_json(silent=True)))
+        with store.transaction() as db:return jsonify(read_catalogue(db))
+
+    @app.route('/api/windows-sales-receipts', methods=['GET','POST'])
+    @authenticated
+    def windows_sales_receipts():
+        from .sales_catalogue import read_receipts, acknowledge
+        if request.method=='POST':
+            if g.user['role']!='admin':raise Rejected('Accusés réservés au compte Windows administrateur.',403)
+            return jsonify(acknowledge(store,request.get_json(silent=True)))
+        with store.transaction() as db:return jsonify(receipts=read_receipts(db))
 
     @app.get('/api/windows-staging')
     @authenticated

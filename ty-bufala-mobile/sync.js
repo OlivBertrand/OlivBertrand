@@ -53,6 +53,13 @@ class CloudSync {
   }
  }
  async run(){return this.lock(()=>this._run());}
+ async pullSales(){
+  try {
+   const catalogue=await this.request('sales-catalogue'),result=await this.request('windows-sales-receipts');
+   if(!Array.isArray(catalogue.products)||!Array.isArray(result.receipts))throw new Error('Catalogue ou accusés incomplets.');
+   await this.transaction(['meta'],tx=>{tx.objectStore('meta').put({id:'salesCatalogue',value:catalogue});tx.objectStore('meta').put({id:'salesReceipts',value:result.receipts});});
+  } catch(error){if(error.status!==404)throw error;}
+ }
  async _run() {
   if(this.running||!navigator.onLine)return;
   this.running=true;this.error='';this.onchange();
@@ -63,7 +70,7 @@ class CloudSync {
     try {const result=await this.request('sync',{method:'POST',body:JSON.stringify({operations:batch.operations})});await this.accept(batch,result.receipts);}
     catch(error){if(error.status===409||error.status===422){await this.transaction(['outbox'],tx=>tx.objectStore('outbox').put({...batch,blocked:{...error.details,status:error.status}}));}throw error;}
    }
-   await this.pull();this.confirmed=true;
+   await this.pull();await this.pullSales();this.confirmed=true;
    await this.transaction(['meta'],tx=>tx.objectStore('meta').put({id:'lastConfirmed',value:new Date().toISOString()}));
   } catch(error){this.error=error.message;}
   finally{this.running=false;this.onchange();}
