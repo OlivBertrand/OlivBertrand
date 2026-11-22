@@ -130,4 +130,4 @@ async function ensureFolders(token,parts){
   }
 }
 
-render();
+// The current entry page renders after the later view modules have loaded.

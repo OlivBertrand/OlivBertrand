@@ -1,0 +1,14 @@
+{
+  "name": "zantho-photo-sync-tests",
+  "private": true,
+  "version": "0.6.5",
+  "scripts": {
+    "test": "node --test tests/*.test.cjs",
+    "icons": "node tools/build-icons.cjs"
+  },
+  "devDependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "fake-indexeddb": "6.2.5",
+    "jsdom": "31.0.1"
+  }
+}

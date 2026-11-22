@@ -269,53 +269,32 @@ async function zWriteRemoteState(token){
 }
 async function zSyncPhotos(token,notify){
   const localPhotos=await getAllPhotos();
-  const localRefs=localPhotos.map(p=>({
-    id:p.id,plantId:p.plantId,name:p.name,type:p.type,note:p.note||'',
-    createdAt:p.createdAt,updatedAt:p.updatedAt||p.createdAt,
-    drivePath:p.drivePath||null
-  }));
+  const localRefs=localPhotos.map(p=>({id:p.id,plantId:p.plantId,name:p.name,type:p.type,note:p.note||'',createdAt:p.createdAt,updatedAt:p.updatedAt||p.createdAt,drivePath:p.drivePath||null}));
   state.photoRefs=zFilterDeleted(zMergeById(state.photoRefs||[],localRefs),state.deleted?.photoRefs||[]);
-
-  let pulled=0,uploaded=0;
+  let pulled=0,uploaded=0,failed=0;
   for(const ref of state.photoRefs||[]){
-    if(!ref.drivePath) continue;
-    if(await getPhoto(ref.id)) continue;
-    const r=await fetch(zGraphUrl(ref.drivePath)+':/content',{headers:{Authorization:`Bearer ${token}`}});
-    if(!r.ok) continue;
-    const blob=await r.blob();
-    await putPhoto({
-      id:ref.id,plantId:ref.plantId,blob,
-      name:ref.name||'photo.jpg',type:ref.type||blob.type||'image/jpeg',
-      note:ref.note||'',createdAt:ref.createdAt||nowISO(),
-      updatedAt:ref.updatedAt||ref.createdAt||nowISO(),
-      synced:true,drivePath:ref.drivePath
-    });
-    pulled++;
-    if(notify) notify(`Photos reçues : ${pulled}`);
+    if(!ref.drivePath||await getPhoto(ref.id))continue;
+    const response=await fetch(zGraphUrl(ref.drivePath)+':/content',{headers:{Authorization:`Bearer ${token}`}});
+    if(!response.ok){failed++;continue;}
+    const blob=await response.blob();
+    if(!blob.size||(blob.type&&!blob.type.startsWith('image/')&&blob.type!=='application/octet-stream')){failed++;continue;}
+    await putPhoto({...ref,blob,name:ref.name||'photo',type:ref.type||blob.type||'application/octet-stream',synced:true});
+    pulled++;if(notify)notify(`Photos reçues : ${pulled}`);
   }
-
-  const photos=await getAllPhotos();
-  for(const p of photos){
-    const ref=state.photoRefs.find(x=>x.id===p.id);
-    if(ref?.drivePath && p.synced) continue;
-    const ext=(p.type||'').includes('png')?'png':(p.type||'').includes('heic')?'heic':'jpg';
-    const drivePath=`photo-${p.id}.${ext}`;
-    const up=await fetch(zGraphUrl(drivePath)+':/content',{
-      method:'PUT',
-      headers:{Authorization:`Bearer ${token}`,'Content-Type':p.type||'application/octet-stream'},
-      body:p.blob
-    });
-    if(!up.ok) throw new Error(`Envoi photo: ${up.status}`);
-    p.synced=true; p.drivePath=drivePath; p.updatedAt=p.updatedAt||p.createdAt||nowISO();
-    await putPhoto(p);
-    state.photoRefs=zMergeById(state.photoRefs||[],[{
-      id:p.id,plantId:p.plantId,name:p.name,type:p.type,note:p.note||'',
-      createdAt:p.createdAt,updatedAt:p.updatedAt,drivePath
-    }]);
-    uploaded++;
-    if(notify) notify(`Photos envoyées : ${uploaded}/${photos.length}`);
+  const photos=zFilterDeleted(await getAllPhotos(),state.deleted?.photoRefs||[]);
+  for(const photo of photos){
+    const ref=state.photoRefs.find(x=>x.id===photo.id);
+    if(ref?.drivePath&&photo.synced)continue;
+    const format=photoFormat(photo);const drivePath=`photo-${photo.id}.${format.ext}`;
+    const response=await fetch(zGraphUrl(drivePath)+':/content',{method:'PUT',headers:{Authorization:`Bearer ${token}`,'Content-Type':format.type},body:photo.blob});
+    if(!response.ok)throw new Error(`Envoi photo: ${response.status}`);
+    const current=await acknowledgePhotoUpload(photo.id,drivePath,format.type);
+    if(!current){failed++;continue;}
+    const updatedAt=current.updatedAt||current.createdAt||nowISO();
+    state.photoRefs=zMergeById(state.photoRefs||[],[{id:current.id,plantId:current.plantId,name:current.name,type:format.type,note:current.note||'',createdAt:current.createdAt,updatedAt,drivePath}]);
+    uploaded++;if(notify)notify(`Photos envoyées : ${uploaded}/${photos.length}`);
   }
-  return {pulled,uploaded,total:photos.length};
+  return {pulled,uploaded,total:photos.length,failed};
 }
 
 async function zRunSync({interactive=false,reason='manuel'}={}){
@@ -324,10 +303,10 @@ async function zRunSync({interactive=false,reason='manuel'}={}){
   if(!navigator.onLine) return {status:'offline'};
   zSyncBusy=true;
   const started=Date.now();
-  const meta=zSetSyncMeta({running:true,lastAttempt:nowISO(),lastReason:reason,lastError:''});
   const msg=document.querySelector('#syncMsg');
   const notify=t=>{ if(msg) msg.textContent=t; };
   try{
+    zSetSyncMeta({running:true,lastAttempt:nowISO(),lastReason:reason,lastError:''});
     notify(interactive?'Connexion Microsoft…':'Synchronisation…');
     const token=await zAccessToken(interactive);
     if(!token){
@@ -347,25 +326,29 @@ async function zRunSync({interactive=false,reason='manuel'}={}){
     const remote2=await zReadRemoteState(token);
     if(remote2) state=zMergeStates(state,remote2);
 
-    state.settings.syncEnabled=true;
-    state.settings.lastSync=nowISO();
-    zInternalSyncSave=true;
-    save();
-    zInternalSyncSave=false;
+    const published=JSON.stringify(zRemotePayload());
     await zWriteRemoteState(token);
-
-    zSetSyncMeta({
-      running:false,needsLogin:false,lastSuccess:state.settings.lastSync,lastError:'',
-      lastDurationMs:Date.now()-started,account:zSyncMeta().account||''
-    });
+    const afterPhotos=zFilterDeleted(await getAllPhotos(),state.deleted?.photoRefs||[]);
+    const localIds=new Set(afterPhotos.map(p=>p.id));
+    const pending=afterPhotos.filter(p=>!p.synced||!p.drivePath).length+(state.photoRefs||[]).filter(ref=>ref.drivePath&&!localIds.has(ref.id)).length;
+    const changed=JSON.stringify(zRemotePayload())!==published;
+    if(photoStats.failed||pending||changed){
+      zSetSyncMeta({running:false,needsLogin:false,lastError:'Synchronisation partielle ; reprise nécessaire.',lastDurationMs:Date.now()-started});
+      notify(`Synchronisation partielle : ${pending} photo(s) en attente, ${photoStats.failed} opération(s) photo à reprendre.${changed?' Modifications locales à reprendre.':''}`);
+      return {status:'partial',...photoStats,pending,changed};
+    }
+    const previousSync={enabled:state.settings.syncEnabled,date:state.settings.lastSync};
+    state.settings.syncEnabled=true;state.settings.lastSync=nowISO();
+    zInternalSyncSave=true;
+    try{save();}catch(error){state.settings.syncEnabled=previousSync.enabled;state.settings.lastSync=previousSync.date;throw error;}finally{zInternalSyncSave=false;}
+    zSetSyncMeta({running:false,needsLogin:false,lastSuccess:state.settings.lastSync,lastError:'',lastDurationMs:Date.now()-started,account:zSyncMeta().account||''});
     notify(`Synchronisé · ${photoStats.uploaded} photo(s) envoyée(s), ${photoStats.pulled} reçue(s).`);
-    render();
-    return {status:'ok',...photoStats};
-  }catch(err){
-    console.error('Zantho sync',err);
-    zSetSyncMeta({running:false,lastError:String(err?.message||err),lastFailure:nowISO()});
-    notify(`Synchronisation impossible : ${err?.message||err}`);
-    return {status:'error',error:err};
+    render();return {status:'ok',...photoStats};
+  }catch{
+    try{zSetSyncMeta({running:false,lastError:'Synchronisation interrompue ; données locales conservées.',lastFailure:nowISO()});}catch{}
+    notify('Synchronisation impossible. Données locales conservées ; réessayez.');
+    return {status:'error'};
+
   }finally{
     zSyncBusy=false;
   }

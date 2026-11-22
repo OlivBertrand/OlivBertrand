@@ -1,14 +1,6 @@
 // Zantho V0.6.4 — édition généralisée et gestion complète des photos
 
-async function deletePhotoLocal(photoId){
-  const db=await photoDB();
-  return new Promise((resolve,reject)=>{
-    const tx=db.transaction(PHOTO_STORE,'readwrite');
-    tx.objectStore(PHOTO_STORE).delete(photoId);
-    tx.oncomplete=()=>resolve();
-    tx.onerror=()=>reject(tx.error);
-  });
-}
+async function deletePhotoLocal(photoId){return photoTransaction('readwrite',store=>store.delete(photoId));}
 
 function valAttr(v){ return esc(v??''); }
 
@@ -51,7 +43,7 @@ async function openPhotoDetail(photoId,plantId,parent=null){
 
   m.querySelector('#deletePhoto').onclick=async()=>{
     if(!confirm('Supprimer définitivement cette photo ?')) return;
-    const drivePath=ref.drivePath||photo.drivePath||null;
+    const drivePath=ref.drivePath||photo.drivePath||`photo-${photo.id}.${photoFormat(photo).ext}`;
     state.deleted=zDeletedShape(state.deleted);
     state.deleted.photoRefs=zMergeDeletes(state.deleted.photoRefs||[],[{
       id:photoId,deletedAt:nowISO(),drivePath
@@ -91,6 +83,11 @@ loadPlantPhotos=async function(id,el){
       <button type="button" class="mini-edit photo-edit" data-photo="${p.id}">Modifier</button>
     </div>`;
   }).join('');
+  el.querySelectorAll('img').forEach(image=>{image.onerror=()=>{
+    image.hidden=true;const note=document.createElement('span');
+    note.textContent='Original conservé. Aperçu indisponible sur cet appareil.';
+    image.parentNode.appendChild(note);
+  };});
   el.querySelectorAll('[data-photo]').forEach(b=>b.onclick=()=>openPhotoDetail(b.dataset.photo,id,el.closest('.modal-backdrop')));
   const obs=new MutationObserver(()=>{
     if(!el.isConnected){
@@ -454,24 +451,23 @@ openTastingDetail=function(id){
 
 const zSyncPhotosV064=zSyncPhotos;
 zSyncPhotos=async function(token,notify){
-  state.deleted=zDeletedShape(state.deleted);
+  state.deleted=zDeletedShape(state.deleted);let failedDeletions=0;
   for(const tomb of state.deleted.photoRefs||[]){
-    // Supprimer aussi toute copie locale présente sur cet appareil avant la fusion,
-    // sinon un ancien téléphone pourrait réenvoyer une photo déjà supprimée.
-    try{ await deletePhotoLocal(tomb.id); }catch{}
-    if(!tomb.drivePath) continue;
-    try{
-      const r=await fetch(zGraphUrl(tomb.drivePath),{
-        method:'DELETE',
-        headers:{Authorization:`Bearer ${token}`}
-      });
-      if(!r.ok && r.status!==404) console.warn('Suppression photo OneDrive',r.status,tomb.drivePath);
-    }catch(err){
-      console.warn('Suppression photo OneDrive',err);
+    const current=await getPhoto(tomb.id);const ref=(state.photoRefs||[]).find(p=>p.id===tomb.id);
+    if(Math.max(zStamp(current),zStamp(ref))>new Date(tomb.deletedAt||0).getTime())continue;
+    let failed=false;
+    try{await deletePhotoLocal(tomb.id);}catch{failed=true;}
+    if(tomb.drivePath){
+      try{
+        const response=await fetch(zGraphUrl(tomb.drivePath),{method:'DELETE',headers:{Authorization:`Bearer ${token}`}});
+        if(!response.ok&&response.status!==404)failed=true;
+      }catch{failed=true;}
     }
+    if(failed)failedDeletions++;
   }
-  return zSyncPhotosV064(token,notify);
+  const stats=await zSyncPhotosV064(token,notify);
+  return {...stats,failed:(stats.failed||0)+failedDeletions};
 };
 
-state.version='0.6.4';
+state.version=APP_VERSION;
 save();
