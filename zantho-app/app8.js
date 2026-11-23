@@ -157,6 +157,19 @@ function zGraphUrl(path=''){
     ? `https://graph.microsoft.com/v1.0/me/drive/special/approot:/${encoded}`
     : 'https://graph.microsoft.com/v1.0/me/drive/special/approot';
 }
+function zSafeAuthError(error){
+  let saved={};try{saved=JSON.parse(sessionStorage.getItem('zantho-auth-diagnostic-v1')||'{}');}catch{}
+  const candidate=error?.errorCode||saved.code||'unknown';
+  const code=/^[a-z_]{1,64}$/.test(candidate)?candidate:'unknown';
+  const details=String(error?.errorMessage||error?.message||'').slice(0,4096);
+  const previous=Array.isArray(saved.aadsts)?saved.aadsts:[];
+  const aadsts=[...new Set([...(details.match(/\bAADSTS\d{4,12}\b/g)||[]),...previous])].filter(x=>/^AADSTS\d{4,12}$/.test(x)).slice(0,10);
+  return 'Connexion Microsoft : '+code+(aadsts.length?' · '+aadsts.join(', '):'');
+}
+async function zCreateMsalClient(configuration){
+  const {PublicClientApplication}=await import('https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.29.0/+esm');
+  return new PublicClientApplication(configuration);
+}
 async function zGetMsal(){
   const clientId=(state.settings.clientId||Z_DEFAULT_CLIENT_ID||'').trim();
   if(!clientId) throw new Error('Client ID Microsoft manquant');
@@ -164,14 +177,14 @@ async function zGetMsal(){
     if(zAuthInitPromise) await zAuthInitPromise;
     return zMsalCache;
   }
-  const {PublicClientApplication}=await import('https://cdn.jsdelivr.net/npm/@azure/msal-browser@5.29.0/+esm');
-  const appMsal=new PublicClientApplication({
+  const appMsal=await zCreateMsalClient({
     auth:{
       clientId,
       authority:Z_AUTHORITY,
       redirectUri:location.origin+'/'
     },
-    cache:{cacheLocation:'localStorage'}
+    cache:{cacheLocation:'localStorage'},
+    system:{loggerOptions:{piiLoggingEnabled:false,loggerCallback:()=>{}}}
   });
   await appMsal.initialize();
   zMsalCache=appMsal;
@@ -190,11 +203,11 @@ async function zGetMsal(){
     }
     return result;
   }).catch(err=>{
-    console.error('MSAL redirect',err);
-    zSetSyncMeta({lastError:String(err?.message||err),needsLogin:true});
+    zSetSyncMeta({lastError:zSafeAuthError(err),needsLogin:true});
     if(location.hash && /(?:^|#|&)code=|(?:^|#|&)error=/.test(location.hash)){
       history.replaceState(null,document.title,location.pathname+location.search);
     }
+    zMsalCache=null;zMsalClientId=null;zAuthInitPromise=null;
     throw err;
   });
   await zAuthInitPromise;
@@ -464,8 +477,7 @@ async function zResumeMicrosoftRedirect(){
     }
   }catch(err){
     sessionStorage.removeItem(Z_AUTH_RESUME_KEY);
-    console.error('Reprise Microsoft',err);
-    zSetSyncMeta({lastError:String(err?.message||err),needsLogin:true});
+    zSetSyncMeta({lastError:zSafeAuthError(err),needsLogin:true});
     render();
   }
 }

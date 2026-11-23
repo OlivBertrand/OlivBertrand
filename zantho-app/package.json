@@ -1,7 +1,8 @@
 {
   "name": "zantho-photo-sync-tests",
   "private": true,
-  "version": "0.6.5",
+  "type": "module",
+  "version": "0.6.6",
   "scripts": {
     "test": "node --test tests/*.test.cjs",
     "icons": "node tools/build-icons.cjs"
