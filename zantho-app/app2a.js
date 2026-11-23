@@ -44,11 +44,48 @@ function openObservation(plantId,parent){
   };
 }
 
-async function photoDB(){ return new Promise((resolve,reject)=>{ const req=indexedDB.open(PHOTO_DB,1); req.onupgradeneeded=()=>{ if(!req.result.objectStoreNames.contains(PHOTO_STORE)) req.result.createObjectStore(PHOTO_STORE,{keyPath:'id'}); }; req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); }); }
-async function putPhoto(rec){ const db=await photoDB(); return new Promise((res,rej)=>{ const tx=db.transaction(PHOTO_STORE,'readwrite'); tx.objectStore(PHOTO_STORE).put(rec); tx.oncomplete=res; tx.onerror=()=>rej(tx.error); }); }
-async function getPhotosByPlant(plantId){ const db=await photoDB(); return new Promise((res,rej)=>{ const tx=db.transaction(PHOTO_STORE,'readonly'); const req=tx.objectStore(PHOTO_STORE).getAll(); req.onsuccess=()=>res(req.result.filter(x=>x.plantId===plantId).sort((a,b)=>b.createdAt.localeCompare(a.createdAt))); req.onerror=()=>rej(req.error); }); }
-async function getPhoto(id){ const db=await photoDB(); return new Promise((res,rej)=>{ const req=db.transaction(PHOTO_STORE,'readonly').objectStore(PHOTO_STORE).get(id); req.onsuccess=()=>res(req.result||null); req.onerror=()=>rej(req.error); }); }
-async function getAllPhotos(){ const db=await photoDB(); return new Promise((res,rej)=>{ const req=db.transaction(PHOTO_STORE,'readonly').objectStore(PHOTO_STORE).getAll(); req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); }); }
+function photoFormat(photo){
+  const types={'image/jpeg':'jpg','image/png':'png','image/webp':'webp','image/heic':'heic','image/heif':'heif','image/gif':'gif','image/avif':'avif','image/tiff':'tif','image/bmp':'bmp'};
+  const suffix=String(photo.name||'').split('.').pop().toLowerCase();
+  const aliases={jpeg:'image/jpeg',jpg:'image/jpeg',png:'image/png',webp:'image/webp',heic:'image/heic',heif:'image/heif',gif:'image/gif',avif:'image/avif',tif:'image/tiff',tiff:'image/tiff',bmp:'image/bmp'};
+  const declared=String(photo.type||photo.blob?.type||'').toLowerCase().split(';')[0];
+  const legacyHeic=declared==='image/jpeg'&&!photo.blob?.type&&['heic','heif'].includes(suffix);
+  const type=(legacyHeic?aliases[suffix]:declared)||aliases[suffix]||'application/octet-stream';
+  return {type,ext:types[type]||(aliases[suffix]?suffix:'bin')};
+}
+async function photoDB(){
+  return new Promise((resolve,reject)=>{
+    const req=indexedDB.open(PHOTO_DB,1);
+    req.onupgradeneeded=()=>{if(!req.result.objectStoreNames.contains(PHOTO_STORE))req.result.createObjectStore(PHOTO_STORE,{keyPath:'id'});};
+    req.onsuccess=()=>{const db=req.result;db.onversionchange=()=>db.close();resolve(db);};
+    req.onerror=()=>reject(req.error);
+  });
+}
+async function photoTransaction(mode,operation,apply){
+  const db=await photoDB();
+  return new Promise((resolve,reject)=>{
+    try{
+      const tx=db.transaction(PHOTO_STORE,mode);let result,failure;const store=tx.objectStore(PHOTO_STORE);
+      const request=operation(store);
+      request.onsuccess=()=>{try{result=apply?apply(request.result,store):request.result;}catch(error){failure=error;tx.abort();}};
+      // Confirm durability only after the transaction commits, not request success.
+      tx.oncomplete=()=>{db.close();resolve(result);};
+      tx.onabort=()=>{db.close();reject(failure||tx.error||new Error('Enregistrement photo interrompu.'));};
+      tx.onerror=()=>{}; // IndexedDB abort dispatches the final failure above.
+    }catch(error){db.close();reject(error);}
+  });
+}
+async function putPhoto(rec){return photoTransaction('readwrite',store=>store.put(rec));}
+async function acknowledgePhotoUpload(id,drivePath,type){
+  return photoTransaction('readwrite',store=>store.get(id),(current,store)=>{
+    if(!current)return null;
+    const updated={...current,synced:true,drivePath,type};store.put(updated);return updated;
+  });
+}
+async function getAllPhotos(){return photoTransaction('readonly',store=>store.getAll());}
+async function getPhoto(id){return (await photoTransaction('readonly',store=>store.get(id)))||null;}
+async function getPhotosByPlant(plantId){return (await getAllPhotos()).filter(x=>x.plantId===plantId).sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||'')));}
+function releasePhotoUrls(el){for(const url of el._photoUrls||[])URL.revokeObjectURL(url);el._photoUrls=[];el._photoGeneration=(el._photoGeneration||0)+1;}
 function openPhotoCapture(plantId,parent){
   const m=openModal(`<div class="eyebrow">${esc(state.plants.find(x=>x.id===plantId)?.code||plantId)}</div>
     <h2>Photo de suivi</h2>
@@ -81,7 +118,10 @@ function openPhotoCapture(plantId,parent){
   const choose=m.querySelector('#chooseExisting');
   const saveBtn=m.querySelector('#savePhoto');
   let stream=null;
+  let cameraRequest=0;
   let selectedFile=null;
+  let pendingRecord=null;
+  let saving=false;
   let previewUrl=null;
 
   const revokePreview=()=>{
@@ -92,6 +132,7 @@ function openPhotoCapture(plantId,parent){
     if(video) video.srcObject=null;
   };
   const showCaptured=file=>{
+    cameraRequest++;
     selectedFile=file;
     stopCamera();
     revokePreview();
@@ -106,6 +147,7 @@ function openPhotoCapture(plantId,parent){
   };
 
   const startCamera=async()=>{
+    const request=++cameraRequest;
     selectedFile=null;
     revokePreview();
     image.removeAttribute('src');
@@ -123,15 +165,18 @@ function openPhotoCapture(plantId,parent){
       return;
     }
     try{
-      stream=await navigator.mediaDevices.getUserMedia({
+      const acquired=await navigator.mediaDevices.getUserMedia({
         video:{facingMode:{ideal:'environment'}},
         audio:false
       });
+      if(request!==cameraRequest||!m.isConnected){acquired.getTracks().forEach(track=>track.stop());return;}
+      stream=acquired;
       video.srcObject=stream;
       await video.play();
       take.disabled=false;
       status.textContent='Cadre le plant puis prends la photo.';
     }catch(err){
+      if(request!==cameraRequest||!m.isConnected)return;
       console.warn('Caméra Zantho',err);
       status.textContent='Impossible d’ouvrir la caméra. Autorise l’accès à l’appareil photo dans les réglages du navigateur, ou choisis une photo existante.';
     }
@@ -139,17 +184,20 @@ function openPhotoCapture(plantId,parent){
 
   take.onclick=async()=>{
     if(!video.videoWidth||!video.videoHeight) return;
+    const request=cameraRequest;take.disabled=true;
     canvas.width=video.videoWidth;
     canvas.height=video.videoHeight;
     canvas.getContext('2d').drawImage(video,0,0,canvas.width,canvas.height);
     const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/jpeg',0.92));
-    if(!blob) return alert('Impossible de créer la photo.');
+    if(request!==cameraRequest||!m.isConnected)return;
+    if(!blob){take.disabled=false;status.textContent='Impossible de créer la photo. Réessayez.';return;}
     const code=state.plants.find(x=>x.id===plantId)?.code||plantId;
     const file=new File([blob],`zantho-${code}-${Date.now()}.jpg`,{type:'image/jpeg',lastModified:Date.now()});
     showCaptured(file);
   };
   retake.onclick=startCamera;
   choose.onclick=()=>{
+    cameraRequest++;
     stopCamera();
     existing.value='';
     existing.click();
@@ -161,30 +209,29 @@ function openPhotoCapture(plantId,parent){
   };
 
   m.querySelector('#photoForm').onsubmit=async e=>{
-    e.preventDefault();
-    if(!selectedFile) return alert('Prends une photo avant de l’enregistrer.');
-    const createdAt=nowISO();
-    const rec={
-      id:uid('photo'),plantId,blob:selectedFile,
-      name:selectedFile.name||'photo.jpg',
-      type:selectedFile.type||'image/jpeg',
-      note:e.target.note.value,createdAt,synced:false
-    };
-    await putPhoto(rec);
-    state.photoRefs=mergeById(state.photoRefs||[],[{
-      id:rec.id,plantId:rec.plantId,name:rec.name,type:rec.type,note:rec.note,
-      createdAt,updatedAt:createdAt,drivePath:null
-    }]);
-    save();
-    stopCamera();
-    revokePreview();
-    m.remove();
-    if(parent?.remove) parent.remove();
-    openPlant(plantId);
+    e.preventDefault();if(saving)return;
+    if(!selectedFile){status.textContent='Prends ou choisis une photo avant de l’enregistrer.';return;}
+    saving=true;saveBtn.disabled=true;
+    try{
+      if(!selectedFile.size)throw new Error('empty');
+      if(selectedFile.type&&!selectedFile.type.startsWith('image/'))throw new Error('not-image');
+      const format=photoFormat(selectedFile);
+      if(!pendingRecord||pendingRecord.file!==selectedFile){
+        pendingRecord={file:selectedFile,record:{id:uid('photo'),plantId,blob:selectedFile.slice(0,selectedFile.size,format.type),name:selectedFile.name||`photo.${format.ext}`,type:format.type,note:'',createdAt:nowISO(),synced:false}};
+      }
+      const rec=pendingRecord.record;
+      rec.note=e.target.elements.namedItem('note').value;rec.updatedAt=nowISO();
+      await putPhoto(rec);
+      state.photoRefs=zMergeById(state.photoRefs||[],[{id:rec.id,plantId,name:rec.name,type:rec.type,note:rec.note,createdAt:rec.createdAt,updatedAt:rec.updatedAt,drivePath:null}]);
+      try{save();}catch{status.textContent='Photo conservée sur cet appareil. Réessayez l’enregistrement sans sélectionner de nouveau la photo.';return;}
+      stopCamera();revokePreview();m.remove();if(parent?.remove)parent.remove();openPlant(plantId);
+    }catch(error){status.textContent=error?.name==='QuotaExceededError'?'Stockage insuffisant. Enregistrement non confirmé.':'Enregistrement impossible. Gardez la photo et réessayez.';}
+    finally{saving=false;saveBtn.disabled=false;}
   };
 
   const cleanupObserver=new MutationObserver(()=>{
     if(!m.isConnected){
+      cameraRequest++;
       stopCamera();
       revokePreview();
       cleanupObserver.disconnect();
