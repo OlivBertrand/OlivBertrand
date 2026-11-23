@@ -9,7 +9,7 @@ const {Blob,File}=require('node:buffer');
 const root=path.join(__dirname,'..');
 const source=name=>fs.readFileSync(path.join(root,name),'utf8').replace(/^\uFEFF/,'');
 function lab(t){
- const dom=new JSDOM(source('index.html'),{url:'https://zantho-test.invalid/',runScripts:'outside-only'});const w=dom.window;t.after(()=>dom.window.close());
+ const dom=new JSDOM(source('app.html'),{url:'https://zantho-test.invalid/app.html',runScripts:'outside-only'});const w=dom.window;t.after(()=>dom.window.close());
  const logs=[],timers=[],urls=[],revoked=[];let storageFails=false,metaFails=false;
  const nativeSet=w.Storage.prototype.setItem;
  w.Storage.prototype.setItem=function(key,value){if((storageFails&&key==='zantho-state-v1')||(metaFails&&key==='zantho-sync-meta-v2'))throw new Error('SYNTHETIC_QUOTA');return nativeSet.call(this,key,value);};
@@ -112,7 +112,23 @@ test('photo editor refuses a remote correction received while its form was open'
  assert.equal((await l.w.getPhoto(p.id)).note,'RECEIVED ELSEWHERE');assert.ok(form.isConnected);assert.equal(alerts.length,1);
 });
 test('runs current producer with automatic AppFolder sync and photo editing intact',t=>{
- const l=lab(t);assert.equal(l.w.eval('APP_VERSION'),'0.6.5');assert.equal(l.w.eval('Z_SYNC_SCOPE.join()'),'Files.ReadWrite.AppFolder');assert.equal(typeof l.w.openPhotoDetail,'function');assert.equal(typeof l.w.markDeleted,'function');assert.ok(l.timers.some(x=>x[1]===2500));
+ const l=lab(t);assert.equal(l.w.eval('APP_VERSION'),'0.6.6');assert.equal(l.w.eval('Z_SYNC_SCOPE.join()'),'Files.ReadWrite.AppFolder');assert.equal(typeof l.w.openPhotoDetail,'function');assert.equal(typeof l.w.markDeleted,'function');assert.ok(l.timers.some(x=>x[1]===2500));
+});
+
+test('Microsoft initialization keeps the registered root URI and private cache without SDK logging',async t=>{
+ const l=lab(t);let options;l.w.zCreateMsalClient=async config=>{options=config;return {initialize:async()=>{},handleRedirectPromise:async()=>null};};
+ await l.w.zGetMsal();assert.equal(options.auth.redirectUri,'https://zantho-test.invalid/');assert.equal(options.cache.cacheLocation,'localStorage');assert.equal(options.system.loggerOptions.piiLoggingEnabled,false);assert.equal(typeof options.system.loggerOptions.loggerCallback,'function');
+});
+
+test('failed Microsoft return retains only codes and permits another initialization attempt',async t=>{
+ const l=lab(t);let attempts=0;l.w.zCreateMsalClient=async()=>({initialize:async()=>{},handleRedirectPromise:async()=>{attempts++;if(attempts===1)throw Object.assign(new Error('AADSTS7000218 PRIVATE_TOKEN user@example.invalid'),{errorCode:'server_error'});return null;}});
+ await assert.rejects(l.w.zGetMsal());const meta=l.w.localStorage.getItem('zantho-sync-meta-v2');assert.match(meta,/AADSTS7000218/);assert.doesNotMatch(meta,/PRIVATE_TOKEN|user@/);assert.equal(l.logs.length,0);
+ await l.w.zGetMsal();assert.equal(attempts,2);
+});
+
+test('automatic return processing never logs or retains raw Microsoft error payloads',async t=>{
+ const l=lab(t);l.w.sessionStorage.setItem('zantho-sync-resume-v1','1');l.w.zCreateMsalClient=async()=>({initialize:async()=>{},handleRedirectPromise:async()=>{throw Object.assign(new Error('RAW_SECRET customer@example.invalid'),{errorCode:'invalid_client'});}});
+ await l.w.zResumeMicrosoftRedirect();assert.equal(l.logs.length,0);assert.doesNotMatch(l.w.localStorage.getItem('zantho-sync-meta-v2'),/RAW_SECRET|customer@/);assert.match(l.w.localStorage.getItem('zantho-sync-meta-v2'),/invalid_client/);assert.equal(l.w.sessionStorage.getItem('zantho-sync-resume-v1'),null);
 });
 test('photo format preserves HEIC and repairs legacy empty-MIME defaults',t=>{
  const {w}=lab(t);assert.equal(w.photoFormat(new File(['x'],'image.HEIC')).ext,'heic');assert.equal(w.photoFormat({name:'image.heic',type:'image/jpeg',blob:new Blob(['x'])}).type,'image/heic');assert.equal(w.photoFormat({name:'image.jpg',type:'image/webp'}).ext,'webp');
