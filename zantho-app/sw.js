@@ -1,6 +1,6 @@
 const PREFIX='zantho-shell:'+self.registration.scope+':';
-const CACHE=PREFIX+'v065';
-const ASSETS=['./index.html','./styles.css','./app1.js?v=0.6.5','./app2a.js?v=0.6.5','./app2b.js','./app3.js?v=0.6.4','./app4.js','./app5.js?v=0.4.0','./app6.js?v=0.4.1','./app7.js?v=0.4.2','./app8.js?v=0.6.5','./app9.js?v=0.6.4','./app10.js?v=0.6.5','./manifest.webmanifest?v=0.6.5','./icon.svg?v=svg1','./apple-touch-icon.png?v=0.6.5','./icon-192.png','./icon-512.png'];
+const CACHE=PREFIX+'v065r2';
+const ASSETS=['./index.html','./styles.css','./app1.js?v=0.6.5','./app2a.js?v=0.6.5','./app2b.js','./app3.js?v=0.6.4','./app4.js','./app5.js?v=0.4.0','./app6.js?v=0.4.1','./app7.js?v=0.4.2','./app8.js?v=0.6.5-r2','./app9.js?v=0.6.4','./app10.js?v=0.6.5-r2','./manifest.webmanifest?v=0.6.5','./icon.svg?v=svg1','./apple-touch-icon.png?v=0.6.5','./icon-192.png','./icon-512.png'];
 const ALLOWED=new Set(ASSETS.map(path=>new URL(path,self.registration.scope).href));
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(Promise.all([

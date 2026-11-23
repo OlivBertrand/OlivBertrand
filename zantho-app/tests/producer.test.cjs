@@ -35,6 +35,82 @@ function capture(l,file){
  const parent=l.w.openModal('<h2>Parent fictif</h2>');l.w.openPhotoCapture(l.state().plants[0].id,parent);const form=l.w.document.querySelector('#photoForm');const input=form.querySelector('#existingPhoto');Object.defineProperty(input,'files',{value:[file],configurable:true});input.onchange();return form;
 }
 const submit=form=>form.onsubmit({preventDefault(){},target:form});
+
+function sharedCloud(...devices){
+ const objects=new Map(),calls=[];
+ for(const l of devices)l.w.fetch=async(url,options={})=>{
+  const method=options.method||'GET';const key=new URL(url).pathname;calls.push({method,key});
+  if(method==='PUT'){objects.set(key,options.body);return response({id:'SYNTHETIC_ACK'});}
+  if(method==='DELETE'){objects.delete(key);return new Response(null,{status:204});}
+  if(!objects.has(key))return response({},404);
+  const value=objects.get(key);return value instanceof Blob?new Response(value,{headers:{'Content-Type':value.type}}):new Response(value,{headers:{'Content-Type':'application/json'}});
+ };
+ return {objects,calls};
+}
+
+test('two devices preserve original bytes and receive photo comment corrections without reupload',async t=>{
+ const a=lab(t),b=lab(t);const cloud=sharedCloud(a,b);const original=await photo(a);
+ assert.equal((await a.w.zRunSync()).status,'ok');assert.equal((await b.w.zRunSync()).status,'ok');
+ const received=await b.w.getPhoto(original.id);assert.equal(await received.blob.text(),'SYNTHETIC_IMAGE_BYTES');
+ const updatedAt=new Date(Date.now()+1000).toISOString();await b.w.putPhoto({...received,note:'CORRECTED ON DEVICE B',updatedAt});
+ b.state().photoRefs=b.state().photoRefs.map(ref=>({...ref,note:'CORRECTED ON DEVICE B',updatedAt}));
+ assert.equal((await b.w.zRunSync()).status,'ok');assert.equal((await a.w.zRunSync()).status,'ok');
+ assert.equal((await a.w.getPhoto(original.id)).note,'CORRECTED ON DEVICE B');
+ await a.w.openPhotoDetail(original.id,original.plantId);assert.equal(a.w.document.querySelector('#photoEditForm [name=note]').value,'CORRECTED ON DEVICE B');
+ assert.equal(cloud.calls.filter(c=>c.method==='PUT'&&c.key.includes('photo-photo_test.heic')).length,1);
+});
+
+test('remote deletion disappears from the second device gallery and local photo store',async t=>{
+ const a=lab(t),b=lab(t);const cloud=sharedCloud(a,b);const original=await photo(a);await a.w.zRunSync();await b.w.zRunSync();
+ a.state().photoRefs=[];a.state().deleted.photoRefs=[{id:original.id,deletedAt:new Date(Date.now()+1000).toISOString(),drivePath:'photo-photo_test.heic'}];await a.w.deletePhotoLocal(original.id);
+ assert.equal((await a.w.zRunSync()).status,'ok');assert.equal((await b.w.zRunSync()).status,'ok');
+ assert.equal((await b.w.getPhotosByPlant(original.plantId)).length,0);assert.equal(await b.w.getPhoto(original.id),null);
+ assert.equal(cloud.calls.filter(c=>c.method==='PUT'&&c.key.includes('photo-photo_test.heic')).length,1);
+});
+
+test('photo metadata arriving on the final reread is applied before synchronization succeeds',async t=>{
+ const l=lab(t);const p=await photo(l,'existing',{synced:true,drivePath:'photo-existing.heic',note:'OLDER'});l.state().photoRefs=[{...p,blob:undefined}];
+ const remote=structuredClone(l.w.zRemotePayload());remote.photoRefs[0].note='LATEST';remote.photoRefs[0].updatedAt=new Date(Date.now()+1000).toISOString();let reads=0;
+ graph(l,(url,o)=>!o.method&&url.includes('zantho-data.json')?(++reads===1?response({},404):response(remote)):null);
+ assert.equal((await l.w.zRunSync()).status,'ok');assert.equal((await l.w.getPhoto(p.id)).note,'LATEST');
+});
+
+test('clearing a comment on another device is not replaced by the older local comment',async t=>{
+ const l=lab(t);const p=await photo(l,'clear',{synced:true,drivePath:'photo-clear.heic',note:'REMOVE ME'});l.state().photoRefs=[{...p,blob:undefined}];
+ const remote=structuredClone(l.w.zRemotePayload());remote.photoRefs[0].note='';remote.photoRefs[0].updatedAt=new Date(Date.now()+1000).toISOString();
+ graph(l,(url,o)=>!o.method&&url.includes('zantho-data.json')?response(remote):null);assert.equal((await l.w.zRunSync()).status,'ok');
+ assert.equal((await l.w.getPhoto(p.id)).note,'');await l.w.openPhotoDetail(p.id,p.plantId);assert.equal(l.w.document.querySelector('#photoEditForm [name=note]').value,'');
+});
+
+test('newer local comment is preserved when an older remote reference is reconciled',async t=>{
+ const l=lab(t);const p=await photo(l,'newer',{note:'LOCAL NEWER',updatedAt:new Date(Date.now()+1000).toISOString()});
+ l.state().photoRefs=[{id:p.id,note:'REMOTE OLDER',plantId:p.plantId,updatedAt:p.createdAt}];await l.w.zRefreshPhotoMetadata();
+ assert.equal((await l.w.getPhoto(p.id)).note,'LOCAL NEWER');assert.equal(await (await l.w.getPhoto(p.id)).blob.text(),'SYNTHETIC_IMAGE_BYTES');
+});
+
+test('metadata transaction failure does not report success and a retry applies the correction',async t=>{
+ const l=lab(t);const p=await photo(l,'retry-meta',{synced:true,drivePath:'photo-retry-meta.heic'});l.state().photoRefs=[{...p,blob:undefined}];
+ const remote=structuredClone(l.w.zRemotePayload());remote.photoRefs[0].note='RECEIVED';remote.photoRefs[0].updatedAt=new Date(Date.now()+1000).toISOString();
+ graph(l,(url,o)=>!o.method&&url.includes('zantho-data.json')?response(remote):null);const original=l.w.photoTransaction;
+ l.w.photoTransaction=async(mode,...args)=>{if(mode==='readwrite')throw new Error('SYNTHETIC_QUOTA');return original(mode,...args);};
+ assert.equal((await l.w.zRunSync()).status,'error');assert.equal(l.state().settings.lastSync,'2026-11-19T12:00:00.000Z');
+ l.w.photoTransaction=original;assert.equal((await l.w.zRunSync()).status,'ok');assert.equal((await l.w.getPhoto(p.id)).note,'RECEIVED');
+});
+
+test('editing a photo opened before upload acknowledgement preserves acknowledgement and avoids reupload',async t=>{
+ const l=lab(t);const p=await photo(l);await l.w.openPhotoDetail(p.id,p.plantId);const form=l.w.document.querySelector('#photoEditForm');
+ Object.defineProperty(form,'note',{value:form.querySelector('[name=note]')});form.note.value='EDITED AFTER UPLOAD';
+ const cloud=sharedCloud(l);await l.w.zRunSync();assert.equal((await l.w.getPhoto(p.id)).synced,true);await submit(form);
+ assert.equal((await l.w.getPhoto(p.id)).synced,true);assert.equal((await l.w.getPhoto(p.id)).note,'EDITED AFTER UPLOAD');
+ await l.w.zRunSync();assert.equal(cloud.calls.filter(c=>c.method==='PUT'&&c.key.includes('photo-photo_test.heic')).length,1);
+});
+
+test('photo editor refuses a remote correction received while its form was open',async t=>{
+ const l=lab(t);const p=await photo(l,'editor-stale',{synced:true,drivePath:'photo-editor-stale.heic'});await l.w.openPhotoDetail(p.id,p.plantId);const form=l.w.document.querySelector('#photoEditForm');
+ Object.defineProperty(form,'note',{value:form.querySelector('[name=note]')});form.note.value='STALE FORM';let alerts=[];l.w.alert=value=>alerts.push(value);
+ l.state().photoRefs=[{id:p.id,plantId:p.plantId,note:'RECEIVED ELSEWHERE',updatedAt:new Date(Date.now()+1000).toISOString()}];await l.w.zRefreshPhotoMetadata();await submit(form);
+ assert.equal((await l.w.getPhoto(p.id)).note,'RECEIVED ELSEWHERE');assert.ok(form.isConnected);assert.equal(alerts.length,1);
+});
 test('runs current producer with automatic AppFolder sync and photo editing intact',t=>{
  const l=lab(t);assert.equal(l.w.eval('APP_VERSION'),'0.6.5');assert.equal(l.w.eval('Z_SYNC_SCOPE.join()'),'Files.ReadWrite.AppFolder');assert.equal(typeof l.w.openPhotoDetail,'function');assert.equal(typeof l.w.markDeleted,'function');assert.ok(l.timers.some(x=>x[1]===2500));
 });

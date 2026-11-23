@@ -33,6 +33,6 @@ test('Graph, OAuth callback, authorized GET, writes and private routes bypass ca
 });
 test('offline navigation and versioned script use cached data; missing resource is explicit',async()=>{
  const w=worker();w.c.fetch=async()=>{throw new TypeError('offline');};w.bucket.match=async()=>new Response('SYNTHETIC_SHELL');let e=event(scope,'navigate');w.handlers.fetch(e);assert.equal(await(await e.result()).text(),'SYNTHETIC_SHELL');
- w.bucket.match=async()=>undefined;e=event(scope+'app8.js?v=0.6.5');w.handlers.fetch(e);assert.equal((await e.result()).status,503);
+ w.bucket.match=async()=>undefined;e=event(scope+'app8.js?v=0.6.5-r2');w.handlers.fetch(e);assert.equal((await e.result()).status,503);
 });
-test('HTTP failure never poisons a previously good offline cache',async()=>{const w=worker();w.c.fetch=async()=>new Response('failure',{status:503});const e=event(scope+'app8.js?v=0.6.5');w.handlers.fetch(e);assert.equal((await e.result()).status,503);assert.equal(w.puts.length,0);});
+test('HTTP failure never poisons a previously good offline cache',async()=>{const w=worker();w.c.fetch=async()=>new Response('failure',{status:503});const e=event(scope+'app8.js?v=0.6.5-r2');w.handlers.fetch(e);assert.equal((await e.result()).status,503);assert.equal(w.puts.length,0);});

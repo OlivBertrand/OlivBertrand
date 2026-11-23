@@ -267,7 +267,21 @@ async function zWriteRemoteState(token){
   if(!r.ok) throw new Error(`Écriture OneDrive: ${r.status}`);
   return r.json();
 }
+async function zRefreshPhotoMetadata(){
+  for(const candidate of state.photoRefs||[]){
+    await photoTransaction('readwrite',store=>store.get(candidate.id),(current,store)=>{
+      const ref=(state.photoRefs||[]).find(p=>p.id===candidate.id);
+      if(!current||!ref||zStamp(ref)<=zStamp(current))return;
+      if(!zFilterDeleted([ref],state.deleted?.photoRefs||[]).length)return;
+      // Keep the original blob and its upload acknowledgement. Only newer
+      // descriptive metadata follows the same merge rule as the JSON source.
+      store.put({...current,note:ref.note??'',plantId:ref.plantId||current.plantId,
+        updatedAt:ref.updatedAt||ref.createdAt,drivePath:current.drivePath||ref.drivePath});
+    });
+  }
+}
 async function zSyncPhotos(token,notify){
+  await zRefreshPhotoMetadata();
   const localPhotos=await getAllPhotos();
   const localRefs=localPhotos.map(p=>({id:p.id,plantId:p.plantId,name:p.name,type:p.type,note:p.note||'',createdAt:p.createdAt,updatedAt:p.updatedAt||p.createdAt,drivePath:p.drivePath||null}));
   state.photoRefs=zFilterDeleted(zMergeById(state.photoRefs||[],localRefs),state.deleted?.photoRefs||[]);
@@ -325,6 +339,7 @@ async function zRunSync({interactive=false,reason='manuel'}={}){
     // Relire juste avant l’écriture pour réduire la fenêtre de conflit entre iPhone et PC.
     const remote2=await zReadRemoteState(token);
     if(remote2) state=zMergeStates(state,remote2);
+    await zRefreshPhotoMetadata();
 
     const published=JSON.stringify(zRemotePayload());
     await zWriteRemoteState(token);

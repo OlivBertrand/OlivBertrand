@@ -27,12 +27,22 @@ async function openPhotoDetail(photoId,plantId,parent=null){
     e.preventDefault();
     const note=e.target.note.value.trim();
     const updatedAt=nowISO();
-    photo.note=note;
-    photo.updatedAt=updatedAt;
-    await putPhoto(photo);
+    let saved;
+    try{
+      saved=await photoTransaction('readwrite',store=>store.get(photoId),(current,store)=>{
+        if(!current||zStamp(current)!==zStamp(photo)||(current.note??'')!==(photo.note??'')||
+          !zFilterDeleted([current],state.deleted?.photoRefs||[]).length)return null;
+        const updated={...current,note,updatedAt};store.put(updated);return updated;
+      });
+    }catch{
+      alert('Enregistrement impossible. Votre commentaire reste dans le formulaire ; réessayez.');return;
+    }
+    if(!saved){
+      alert('Cette photo a changé depuis son ouverture. Votre commentaire reste affiché ; rouvrez la photo pour vérifier la dernière version.');return;
+    }
     state.photoRefs=zMergeById(state.photoRefs||[],[{
-      id:photo.id,plantId:photo.plantId,name:photo.name,type:photo.type,
-      note,createdAt:photo.createdAt,updatedAt,drivePath:ref.drivePath||photo.drivePath||null
+      id:saved.id,plantId:saved.plantId,name:saved.name,type:saved.type,
+      note,createdAt:saved.createdAt,updatedAt,drivePath:saved.drivePath||ref.drivePath||null
     }]);
     save();
     URL.revokeObjectURL(url);
